@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}PAROL6{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+  {% block nav %}
+  <div class="nav-bar">
+    {% block nav_left %}<span></span>{% endblock %}
+    <span class="nav-title">{% block nav_title %}PAROL6{% endblock %}</span>
+    <button class="btn-stop" onclick="sendStop()">&#9632; STOP</button>
+  </div>
+  {% endblock %}
+
+  <main style="flex:1; padding: 16px 20px;">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/static/socket.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}PAROL6 Controller{% endblock %}
+{% block nav %}
+<div class="nav-bar" style="justify-content:center; flex-direction:column; gap:6px; padding-top:20px;">
+  <span class="nav-title" style="font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim)">PAROL6 Controller</span>
+  <span class="status-pill" id="status-pill">
+    <span class="dot dot-green"></span> Simulator · Ready
+  </span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px 16px;
+  padding: 24px 8px;
+  max-width: 340px;
+  margin: 0 auto;
+">
+  {% for app in apps %}
+  <a href="/apps/{{ app.slug }}" style="text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:8px;">
+    <div style="
+      width: 76px; height: 76px;
+      border-radius: 18px;
+      background: {{ app.color }};
+      display: flex; align-items: center; justify-content: center;
+      font-size: 34px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      position: relative; overflow: hidden;
+    ">
+      {{ app.icon }}
+      <div style="position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,0.15),transparent);border-radius:18px 18px 0 0;"></div>
+    </div>
+    <span style="font-size:11px; color:rgba(255,255,255,0.9); text-shadow:0 1px 4px rgba(0,0,0,0.8);">{{ app.name }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
