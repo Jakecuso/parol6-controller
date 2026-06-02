@@ -1,61 +1,50 @@
-"""
-run.py — start here.
-
-Boots the shared Robot connection, then opens the home screen.
-
-Default is the SIMULATOR so you can never accidentally move a real arm just by
-running this. To drive the real arm on the Pi:
-
-    python run.py --real --no-manage --port 5001
-
-...after you've started the controller against the serial port yourself, e.g.
-
-    parol6-server --serial=/dev/ttyUSB0 --log-level=INFO
-"""
-
-from __future__ import annotations
-
 import argparse
+import webbrowser
+import eventlet
+eventlet.monkey_patch()
 
-from core.robot import Robot
-from ui.launcher import home_screen
-
+from server import create_app, socketio
 
 def parse_args():
-    p = argparse.ArgumentParser(description="PAROL6 mini-app launcher")
-    p.add_argument("--host", default="127.0.0.1", help="controller UDP host")
-    p.add_argument("--port", type=int, default=5001, help="controller UDP port")
-    p.add_argument(
-        "--real",
-        action="store_true",
-        help="connect to the REAL arm (default is the safe simulator)",
-    )
-    p.add_argument(
-        "--no-manage",
-        action="store_true",
-        help="do NOT start/stop the controller ourselves (connect to one "
-        "that's already running — normal on the Pi)",
-    )
+    p = argparse.ArgumentParser(description="PAROL6 Web Controller")
+    p.add_argument("--real", action="store_true", help="Connect to real hardware")
+    p.add_argument("--no-manage", action="store_true", help="Don't auto-start controller")
+    p.add_argument("--port", type=int, default=5000)
     return p.parse_args()
 
-
-def main():
-    args = parse_args()
-    simulate = not args.real
-    manage = not args.no_manage
-
-    print(f"connecting (mode={'REAL' if args.real else 'SIM'}, "
-          f"manage_controller={manage}) ...")
-
-    with Robot(
-        host=args.host,
-        port=args.port,
-        simulate=simulate,
-        manage_controller=manage,
-    ) as robot:
-        print("connected. ping:", robot.ping())
-        home_screen(robot)
-
+def telemetry_loop(app, sock):
+    """Background greenlet: push pose_update at ~50 Hz."""
+    robot = app.robot
+    with app.app_context():
+        while True:
+            try:
+                joints = list(robot.get_angles() or [0.0]*6)
+                xyz = list(robot.get_pose() or [0.0]*6)
+                status = robot.get_status()
+                sock.emit("pose_update", {
+                    "joints": joints,
+                    "xyz": xyz,
+                    "status": str(status) if status else "ok",
+                    "error": False,
+                }, broadcast=True)
+            except Exception as e:
+                sock.emit("pose_update", {
+                    "joints": [0.0]*6,
+                    "xyz": [0.0]*6,
+                    "status": "error",
+                    "error": True,
+                }, broadcast=True)
+            sock.sleep(0.02)  # 50 Hz
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    simulate = not args.real
+    app, sock = create_app(simulate=simulate)
+
+    sock.start_background_task(telemetry_loop, app, sock)
+
+    url = f"http://localhost:{args.port}"
+    print(f"PAROL6 Controller → {url}")
+    webbrowser.open(url)
+
+    sock.run(app, host="0.0.0.0", port=args.port, debug=False)
