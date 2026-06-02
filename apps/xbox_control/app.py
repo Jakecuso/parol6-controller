@@ -1,78 +1,95 @@
-"""
-apps/xbox_control/app.py — App 2: Bluetooth Xbox controller teleop.
+import threading
+from flask import Blueprint, render_template
 
-Reads an Xbox controller (paired over Bluetooth, so the OS sees it as a normal
-gamepad) and maps the sticks to robot jog commands.
+NAME  = "Remote"
+ICON  = "🕹️"
+COLOR = "linear-gradient(145deg, #ff7043, #bf360c)"
+SLUG  = "remote"
 
-This is a STARTER STUB. It shows the recommended shape:
-  - open the gamepad
-  - loop: read stick axes -> map to jog speeds -> send to robot
-  - use streaming mode for smooth continuous jogging
+DEADZONE = 0.15
+MAX_SPEED = 80.0
 
-Two pieces still need finishing:
-  1. The robot jog calls (robot.jog_cartesian) must be wired to the real API.
-  2. A gamepad library must be installed. `pygame` is the simplest cross-platform
-     choice and works on both macOS and Raspberry Pi. It's listed (commented)
-     in requirements.txt — uncomment it when you start this app.
+AXIS_MAP = [
+    (0, "X",   1),   # left stick X  → Cartesian X
+    (1, "Y",  -1),   # left stick Y  → Cartesian Y (inverted)
+    (3, "Z",  -1),   # right stick Y → Cartesian Z
+    (2, "RZ",  1),   # right stick X → rotate Z
+]
 
-Pairing the controller is an OS-level step (Bluetooth settings on the Mac, or
-bluetoothctl on the Pi); once paired it just shows up as a joystick.
-"""
-
-from __future__ import annotations
-
-NAME = "Xbox Control"
-
-# Tuning constants — tweak freely.
-DEADZONE = 0.12          # ignore tiny stick noise near center
-MAX_SPEED_PCT = 30.0     # stick fully pushed -> this jog speed (percent)
+_gamepad_stop = threading.Event()
 
 
-def _apply_deadzone(value: float) -> float:
-    return 0.0 if abs(value) < DEADZONE else value
+def register(app, robot, socketio):
+    bp = Blueprint("remote", __name__, template_folder="templates")
 
+    @bp.route("/apps/remote")
+    def index():
+        return render_template("xbox_control/remote.html")
 
-def run(robot):
-    try:
-        import pygame  # noqa: F401
-    except ImportError:
-        print("  This app needs pygame. Install it (and uncomment it in")
-        print("  requirements.txt):   pip install pygame")
-        return
+    app.register_blueprint(bp)
 
-    import pygame
+    @socketio.on("remote:start")
+    def handle_start():
+        global _gamepad_stop
+        _gamepad_stop.set()
+        _gamepad_stop = threading.Event()
+        stop_event = _gamepad_stop
 
-    pygame.init()
-    pygame.joystick.init()
+        def _loop():
+            try:
+                import pygame
+                pygame.init()
+                pygame.joystick.init()
+            except ImportError:
+                socketio.emit("remote:state", {"connected": False, "error": "pygame not installed"})
+                return
 
-    if pygame.joystick.get_count() == 0:
-        print("  No gamepad found. Pair your Xbox controller over Bluetooth")
-        print("  first, then try again.")
-        pygame.quit()
-        return
+            while not stop_event.is_set():
+                try:
+                    pygame.event.pump()
+                    if pygame.joystick.get_count() == 0:
+                        socketio.emit("remote:state", {"connected": False})
+                        socketio.sleep(0.5)
+                        continue
 
-    pad = pygame.joystick.Joystick(0)
-    pad.init()
-    print(f"  using controller: {pad.get_name()}")
-    print("  left stick = X/Y,  right stick = Z / rotate.  Ctrl-C to exit.")
+                    js = pygame.joystick.Joystick(0)
+                    js.init()
+                    num_axes = js.get_numaxes()
+                    axes = [js.get_axis(i) for i in range(num_axes)]
 
-    try:
-        while True:
-            pygame.event.pump()
+                    state = {
+                        "connected": True,
+                        "lx": axes[0] if num_axes > 0 else 0,
+                        "ly": axes[1] if num_axes > 1 else 0,
+                        "rx": axes[2] if num_axes > 2 else 0,
+                        "ry": axes[3] if num_axes > 3 else 0,
+                    }
+                    socketio.emit("remote:state", state)
 
-            # Typical Xbox axis layout (may vary by OS/driver — verify):
-            #   axis 0 = left stick X,  axis 1 = left stick Y
-            #   axis 3 = right stick X, axis 4 = right stick Y
-            lx = _apply_deadzone(pad.get_axis(0))
-            ly = _apply_deadzone(pad.get_axis(1))
-            ry = _apply_deadzone(pad.get_axis(4))
+                    for axis_idx, cart_axis, sign in AXIS_MAP:
+                        if axis_idx < len(axes):
+                            val = axes[axis_idx] * sign
+                            if abs(val) > DEADZONE:
+                                speed = (abs(val) - DEADZONE) / (1.0 - DEADZONE) * MAX_SPEED
+                                direction = 1 if val > 0 else -1
+                                try:
+                                    robot.jog_cartesian(cart_axis, direction * speed)
+                                except Exception as e:
+                                    print(f"[remote] jog error: {e}")
 
-            if lx or ly or ry:
-                robot.jog_cartesian("x", lx * MAX_SPEED_PCT)
-                robot.jog_cartesian("y", -ly * MAX_SPEED_PCT)  # invert: up = +Y
-                robot.jog_cartesian("z", -ry * MAX_SPEED_PCT)
+                except Exception as e:
+                    print(f"[remote] loop error: {e}")
 
-            pygame.time.wait(20)  # ~50 Hz update
-    finally:
-        robot.stop()
-        pygame.quit()
+                socketio.sleep(0.02)
+
+            try:
+                import pygame
+                pygame.quit()
+            except Exception:
+                pass
+
+        socketio.start_background_task(_loop)
+
+    @socketio.on("remote:stop")
+    def handle_stop():
+        _gamepad_stop.set()

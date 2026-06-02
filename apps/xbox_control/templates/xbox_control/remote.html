@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Remote — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Remote{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align:center; padding:24px; margin-bottom:12px;">
+  <div id="conn-icon" style="font-size:48px; margin-bottom:8px;">🕹️</div>
+  <div id="conn-status" style="font-size:14px; color:var(--text-dim);">Searching for gamepad…</div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+  <div class="card" style="text-align:center;">
+    <div class="label-sm">Left Stick (XY)</div>
+    <canvas id="stick-left" width="80" height="80" style="display:block;margin:8px auto 0;"></canvas>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="label-sm">Right Stick (Z / RZ)</div>
+    <canvas id="stick-right" width="80" height="80" style="display:block;margin:8px auto 0;"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label-sm">Control Mapping</div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:11px; color:var(--text-dim);">
+    <div>Left X → Cartesian X</div>
+    <div>Left Y → Cartesian Y</div>
+    <div>Right Y → Cartesian Z</div>
+    <div>Right X → Rotate Z</div>
+    <div>Space / STOP → Stop</div>
+    <div>Esc → Back</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function drawStick(id, x, y) {
+  const c = document.getElementById(id);
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, 80, 80);
+  ctx.strokeStyle = "#2a2a35";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(40, 40, 36, 0, 2 * Math.PI); ctx.stroke();
+  ctx.fillStyle = "#4fc3f7";
+  ctx.beginPath(); ctx.arc(40 + x * 32, 40 + y * 32, 8, 0, 2 * Math.PI); ctx.fill();
+}
+drawStick("stick-left",  0, 0);
+drawStick("stick-right", 0, 0);
+
+socket.emit("remote:start");
+
+socket.on("remote:state", (data) => {
+  if (data.connected) {
+    document.getElementById("conn-icon").textContent   = "✅";
+    document.getElementById("conn-status").textContent = "Gamepad connected";
+    drawStick("stick-left",  data.lx || 0, data.ly || 0);
+    drawStick("stick-right", data.rx || 0, data.ry || 0);
+  } else {
+    document.getElementById("conn-icon").textContent   = "🕹️";
+    document.getElementById("conn-status").textContent = data.error || "Searching for gamepad…";
+    drawStick("stick-left",  0, 0);
+    drawStick("stick-right", 0, 0);
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { socket.emit("remote:stop"); window.location.href = "/"; }
+  if (e.key === " ")      { e.preventDefault(); sendStop(); }
+});
+window.addEventListener("beforeunload", () => socket.emit("remote:stop"));
+</script>
+{% endblock %}
