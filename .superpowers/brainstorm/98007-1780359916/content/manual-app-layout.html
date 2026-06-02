@@ -1,0 +1,108 @@
+<h2>Manual Control — App Layout</h2>
+<p class="subtitle">What does it look like inside the Manual app when you open it?</p>
+
+<div class="split">
+
+  <div class="mockup" data-choice="keyboard-focused" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">A — Keyboard-focused</div>
+    <div class="mockup-body" style="background:#0a0a0f;padding:14px;font-family:-apple-system,sans-serif;">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:#4fc3f7;font-size:11px;">← Home</span>
+        <span style="color:#fff;font-size:13px;font-weight:600;">Manual Control</span>
+        <span style="background:#ff3b30;color:#fff;font-size:9px;padding:3px 8px;border-radius:10px;">STOP</span>
+      </div>
+
+      <!-- Live pose -->
+      <div style="background:#111;border-radius:10px;padding:10px;margin-bottom:10px;">
+        <div style="color:#888;font-size:9px;letter-spacing:1px;margin-bottom:6px;">LIVE POSE</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">12.4°</div><div style="color:#555;font-size:8px;">J1</div></div>
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">-5.1°</div><div style="color:#555;font-size:8px;">J2</div></div>
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">90.0°</div><div style="color:#555;font-size:8px;">J3</div></div>
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">0.0°</div><div style="color:#555;font-size:8px;">J4</div></div>
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">45.2°</div><div style="color:#555;font-size:8px;">J5</div></div>
+          <div style="text-align:center;"><div style="color:#4fc3f7;font-size:13px;font-weight:600;">-12.0°</div><div style="color:#555;font-size:8px;">J6</div></div>
+        </div>
+      </div>
+
+      <!-- Mode toggle -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <div style="flex:1;background:#1e90ff;color:#fff;border-radius:8px;padding:5px;text-align:center;font-size:10px;font-weight:600;">Joint Mode</div>
+        <div style="flex:1;background:#222;color:#888;border-radius:8px;padding:5px;text-align:center;font-size:10px;">Cartesian</div>
+      </div>
+
+      <!-- Key legend -->
+      <div style="background:#111;border-radius:10px;padding:8px;">
+        <div style="color:#888;font-size:9px;letter-spacing:1px;margin-bottom:6px;">KEYBOARD</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+          <div style="color:#ccc;font-size:9px;"><kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 4px;font-size:9px;">1/Q</kbd> J1 ±</div>
+          <div style="color:#ccc;font-size:9px;"><kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 4px;font-size:9px;">2/W</kbd> J2 ±</div>
+          <div style="color:#ccc;font-size:9px;"><kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 4px;font-size:9px;">3/E</kbd> J3 ±</div>
+          <div style="color:#ccc;font-size:9px;"><kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 4px;font-size:9px;">Space</kbd> STOP</div>
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:8px 4px;">
+      <p style="font-size:11px;color:#ccc;margin:3px 0;">Fast, eyes-off control. Hold a key to continuously jog. Keyboard shortcuts visible on screen. Good for precise work.</p>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="button-focused" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">B — On-screen jog buttons</div>
+    <div class="mockup-body" style="background:#0a0a0f;padding:14px;font-family:-apple-system,sans-serif;">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:#4fc3f7;font-size:11px;">← Home</span>
+        <span style="color:#fff;font-size:13px;font-weight:600;">Manual Control</span>
+        <span style="background:#ff3b30;color:#fff;font-size:9px;padding:3px 8px;border-radius:10px;">STOP</span>
+      </div>
+
+      <!-- Joint sliders/buttons -->
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">
+        <div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:4px;align-items:center;">
+          <span style="color:#888;font-size:9px;">J1</span>
+          <div style="height:3px;background:#222;border-radius:2px;position:relative;"><div style="position:absolute;left:30%;width:3px;height:9px;top:-3px;background:#4fc3f7;border-radius:2px;"></div></div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">−</div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">+</div>
+        </div>
+        <div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:4px;align-items:center;">
+          <span style="color:#888;font-size:9px;">J2</span>
+          <div style="height:3px;background:#222;border-radius:2px;position:relative;"><div style="position:absolute;left:55%;width:3px;height:9px;top:-3px;background:#4fc3f7;border-radius:2px;"></div></div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">−</div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">+</div>
+        </div>
+        <div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:4px;align-items:center;">
+          <span style="color:#888;font-size:9px;">J3</span>
+          <div style="height:3px;background:#222;border-radius:2px;position:relative;"><div style="position:absolute;left:70%;width:3px;height:9px;top:-3px;background:#4fc3f7;border-radius:2px;"></div></div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">−</div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">+</div>
+        </div>
+        <div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:4px;align-items:center;">
+          <span style="color:#888;font-size:9px;">J4</span>
+          <div style="height:3px;background:#222;border-radius:2px;position:relative;"><div style="position:absolute;left:45%;width:3px;height:9px;top:-3px;background:#4fc3f7;border-radius:2px;"></div></div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">−</div>
+          <div style="background:#1a1a2e;border:1px solid #333;border-radius:5px;padding:3px 7px;color:#fff;font-size:10px;cursor:pointer;">+</div>
+        </div>
+      </div>
+
+      <!-- Live XYZ -->
+      <div style="background:#111;border-radius:8px;padding:8px;">
+        <div style="color:#888;font-size:9px;letter-spacing:1px;margin-bottom:5px;">END EFFECTOR</div>
+        <div style="display:flex;gap:8px;justify-content:center;">
+          <div style="text-align:center;"><div style="color:#ff9800;font-size:11px;font-weight:600;">124mm</div><div style="color:#555;font-size:8px;">X</div></div>
+          <div style="text-align:center;"><div style="color:#ff9800;font-size:11px;font-weight:600;">-52mm</div><div style="color:#555;font-size:8px;">Y</div></div>
+          <div style="text-align:center;"><div style="color:#ff9800;font-size:11px;font-weight:600;">300mm</div><div style="color:#555;font-size:8px;">Z</div></div>
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:8px 4px;">
+      <p style="font-size:11px;color:#ccc;margin:3px 0;">Click +/− to jog each joint. Better for touchscreen or mouse-only use. Works on phone browser too. Keyboard shortcuts still work in parallel.</p>
+    </div>
+  </div>
+
+</div>
+
+<p style="color:#8b949e;font-size:12px;text-align:center;margin-top:14px;">I recommend <strong style="color:#4fc3f7;">A (keyboard-focused)</strong> for desktop — faster to use when you're at the Mac Mini. But we can do both.</p>

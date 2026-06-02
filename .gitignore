@@ -1,0 +1,5 @@
+.venv/
+external/
+__pycache__/
+*.pyc
+.parol6/

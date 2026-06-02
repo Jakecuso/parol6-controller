@@ -1,0 +1,10 @@
+# The PAROL6 Python API is NOT on PyPI — install it from its repo (the setup
+# scripts in scripts/ do this for you):
+#
+#   git clone https://github.com/PCrnjak/PAROL6-python-API
+#   pip install ./PAROL6-python-API
+#
+# It pulls in its own pinned robotics-toolbox-python build and other deps.
+
+# Needed only by the Xbox Control app. Uncomment when you start that app.
+# pygame>=2.5

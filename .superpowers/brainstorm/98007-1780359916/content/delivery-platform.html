@@ -1,0 +1,86 @@
+<h2>How Does the App Run?</h2>
+<p class="subtitle">Two fundamentally different approaches — pick the one that fits how you want to use it</p>
+
+<div class="split">
+  <div class="mockup" data-choice="web" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">A — Web App (browser-based)</div>
+    <div class="mockup-body" style="background:#1c1c1e;padding:0;border-radius:6px;overflow:hidden;">
+      <!-- Browser chrome -->
+      <div style="background:#2c2c2e;padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #3a3a3c;">
+        <div style="display:flex;gap:4px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#ff5f57;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:#febc2e;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:#28c840;"></div>
+        </div>
+        <div style="background:#3a3a3c;border-radius:6px;padding:3px 10px;flex:1;font-size:10px;color:#aeaeb2;">http://localhost:5000</div>
+      </div>
+      <!-- App content -->
+      <div style="background:#0a0a0f;padding:20px;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
+        <p style="color:#888;font-size:11px;margin:0;">ARCTOS CONTROLLER</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:180px;">
+          <div style="background:linear-gradient(135deg,#1e90ff,#0055cc);border-radius:14px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:20px;">🎮</span>
+            <span style="color:#fff;font-size:8px;">Manual</span>
+          </div>
+          <div style="background:linear-gradient(135deg,#ff6b35,#cc3300);border-radius:14px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:20px;">🕹️</span>
+            <span style="color:#fff;font-size:8px;">Xbox</span>
+          </div>
+          <div style="background:linear-gradient(135deg,#00c853,#007a33);border-radius:14px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:20px;">🤖</span>
+            <span style="color:#fff;font-size:8px;">Vision</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:10px 4px;">
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#4fc3f7;">✓ Opens in any browser</strong> — Mac, Pi, phone, tablet</p>
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#4fc3f7;">✓ Full CSS/HTML</strong> — easiest to make it look exactly like iOS</p>
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#4fc3f7;">✓ Same code on Pi</strong> — just copy the folder, run it there</p>
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#4fc3f7;">✓ Real-time via WebSocket</strong> — live arm telemetry in the UI</p>
+      <p style="font-size:12px;color:#888;margin:4px 0;">Needs a browser window open</p>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="native" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">B — Native Python GUI window</div>
+    <div class="mockup-body" style="background:#1c1c1e;padding:0;border-radius:6px;overflow:hidden;">
+      <!-- Native window chrome -->
+      <div style="background:#323232;padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #444;">
+        <div style="display:flex;gap:4px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#ff5f57;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:#febc2e;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:#28c840;"></div>
+        </div>
+        <span style="font-size:10px;color:#aaa;flex:1;text-align:center;">Arctos Controller</span>
+      </div>
+      <!-- App content -->
+      <div style="background:#1a1a1a;padding:20px;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
+        <p style="color:#888;font-size:11px;margin:0;font-family:monospace;">ARCTOS CONTROLLER</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:180px;">
+          <div style="background:#2a2a2a;border:1px solid #444;border-radius:8px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:18px;">🎮</span>
+            <span style="color:#ccc;font-size:8px;font-family:monospace;">Manual</span>
+          </div>
+          <div style="background:#2a2a2a;border:1px solid #444;border-radius:8px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:18px;">🕹️</span>
+            <span style="color:#ccc;font-size:8px;font-family:monospace;">Xbox</span>
+          </div>
+          <div style="background:#2a2a2a;border:1px solid #444;border-radius:8px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+            <span style="font-size:18px;">🤖</span>
+            <span style="color:#ccc;font-size:8px;font-family:monospace;">Vision</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:10px 4px;">
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#a5d6a7;">✓ No browser needed</strong> — opens like a regular app</p>
+      <p style="font-size:12px;color:#ccc;margin:4px 0;"><strong style="color:#a5d6a7;">✓ Works headless on Pi</strong> — with a connected display</p>
+      <p style="font-size:12px;color:#888;margin:4px 0;">Harder to make look "iOS" — limited to PyQt/Tkinter styling</p>
+      <p style="font-size:12px;color:#888;margin:4px 0;">Not accessible from phone/tablet</p>
+      <p style="font-size:12px;color:#888;margin:4px 0;">Different setup needed on Pi</p>
+    </div>
+  </div>
+</div>
+
+<p style="color:#8b949e;font-size:12px;text-align:center;margin-top:16px;">I recommend <strong style="color:#4fc3f7;">A (web app)</strong> — it gives the cleanest iOS look and copies to Pi with zero changes</p>

@@ -1,0 +1,67 @@
+<h2>Home Screen Style</h2>
+<p class="subtitle">Pick the visual style for the app launcher. This sets the tone for everything.</p>
+
+<div class="cards">
+  <div class="card" data-choice="ios-grid" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f;padding:20px;border-radius:8px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:180px;">
+        <div style="background:linear-gradient(135deg,#1e90ff,#0055cc);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">🎮</div>
+        <div style="background:linear-gradient(135deg,#ff6b35,#cc3300);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">🕹️</div>
+        <div style="background:linear-gradient(135deg,#00c853,#007a33);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">🤖</div>
+        <div style="background:linear-gradient(135deg,#aa00ff,#6600aa);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">👁️</div>
+        <div style="background:linear-gradient(135deg,#ffd600,#cc9900);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">📊</div>
+        <div style="background:linear-gradient(135deg,#546e7a,#263238);border-radius:16px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;">⚙️</div>
+      </div>
+      <p style="color:#aaa;font-size:11px;margin:4px 0 0;">App name labels below icons</p>
+    </div>
+    <div class="card-body">
+      <h3>iOS-Style Grid</h3>
+      <p>Rounded square icons on a dark background. Familiar, clean, scales well as you add more apps. Each tile shows an icon + name. Feels like an iPhone.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="bubble-grid" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#050510;padding:20px;border-radius:8px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;width:200px;justify-content:center;">
+        <div style="width:56px;height:56px;background:radial-gradient(circle at 35% 35%,#4fc3f7,#0288d1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 18px #0288d188;">🎮</div>
+        <div style="width:56px;height:56px;background:radial-gradient(circle at 35% 35%,#ef9a9a,#c62828);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 18px #c6282888;">🕹️</div>
+        <div style="width:56px;height:56px;background:radial-gradient(circle at 35% 35%,#a5d6a7,#2e7d32);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 18px #2e7d3288;">🤖</div>
+        <div style="width:56px;height:56px;background:radial-gradient(circle at 35% 35%,#ce93d8,#6a1b9a);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 18px #6a1b9a88;">👁️</div>
+        <div style="width:56px;height:56px;background:radial-gradient(circle at 35% 35%,#fff176,#f57f17);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 18px #f57f1788;">📊</div>
+      </div>
+      <p style="color:#aaa;font-size:11px;margin:4px 0 0;">Glowing circular icons</p>
+    </div>
+    <div class="card-body">
+      <h3>Bubble Grid</h3>
+      <p>Glowing circular icons with radial gradients and ambient light. More futuristic and tech-forward. Great for a robotics controller aesthetic.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dashboard-cards" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;border-radius:8px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:220px;">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🎮</span>
+          <div><div style="color:#e6edf3;font-size:11px;font-weight:600;">Manual</div><div style="color:#8b949e;font-size:9px;">Joint control</div></div>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🕹️</span>
+          <div><div style="color:#e6edf3;font-size:11px;font-weight:600;">Xbox</div><div style="color:#8b949e;font-size:9px;">Gamepad</div></div>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🤖</span>
+          <div><div style="color:#e6edf3;font-size:11px;font-weight:600;">LLM Vision</div><div style="color:#8b949e;font-size:9px;">AI control</div></div>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">📊</span>
+          <div><div style="color:#e6edf3;font-size:11px;font-weight:600;">Status</div><div style="color:#8b949e;font-size:9px;">Live telemetry</div></div>
+        </div>
+      </div>
+      <p style="color:#8b949e;font-size:11px;margin:4px 0 0;">GitHub dark · info-dense</p>
+    </div>
+    <div class="card-body">
+      <h3>Dashboard Cards</h3>
+      <p>Compact info cards in a grid. GitHub dark aesthetic. Each card shows the app name, icon, and a status/tagline. More info at a glance, less flashy.</p>
+    </div>
+  </div>
+</div>
