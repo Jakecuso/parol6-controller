@@ -1,99 +1,123 @@
-"""apps/sequences/app.py — record and play back a sequence of poses."""
-
-from __future__ import annotations
-
 import json
 import os
+import threading
 import time
+from flask import Blueprint, render_template, request, jsonify
 
-NAME = "Sequences"
+NAME  = "Sequences"
+ICON  = "⏺"
+COLOR = "linear-gradient(145deg, #ffb300, #e65100)"
+SLUG  = "sequences"
 
-SEQ_FILE = os.path.join(os.path.dirname(__file__), "../../data/sequences.json")
+SEQ_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sequences")
 
-
-def _load() -> dict:
-    try:
-        with open(SEQ_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save(seqs: dict):
-    os.makedirs(os.path.dirname(SEQ_FILE), exist_ok=True)
-    with open(SEQ_FILE, "w") as f:
-        json.dump(seqs, f, indent=2)
+_recording     = False
+_record_frames = []
+_record_stop   = threading.Event()
+_playback_stop = threading.Event()
 
 
-def run(robot):
-    seqs = _load()
-    recording: list | None = None
-    rec_name: str | None = None
+def _seq_path(name):
+    os.makedirs(SEQ_DIR, exist_ok=True)
+    safe = "".join(c for c in name if c.isalnum() or c in "-_ ").strip().replace(" ", "_")
+    return os.path.join(SEQ_DIR, f"{safe}.json")
 
-    print("Sequences — record and replay multi-step motion sequences")
-    print("  'rec <name>' = start recording,  'stop' = finish recording")
-    print("  'mark' = capture current joint angles as a waypoint")
-    print("  'play <name>' = replay,  'l' = list,  'b' = back")
 
-    while True:
-        cmd = input("  seq> ").strip()
-        if not cmd:
-            continue
-        parts = cmd.split(None, 1)
-        verb = parts[0].lower()
+def register(app, robot, socketio):
+    bp = Blueprint("sequences", __name__, template_folder="templates")
 
-        if verb in ("b", "back", "q"):
-            return
+    @bp.route("/apps/sequences")
+    def index():
+        seqs = []
+        if os.path.isdir(SEQ_DIR):
+            for fname in sorted(os.listdir(SEQ_DIR)):
+                if fname.endswith(".json"):
+                    try:
+                        with open(os.path.join(SEQ_DIR, fname)) as f:
+                            data = json.load(f)
+                        seqs.append({
+                            "name": fname[:-5].replace("_", " "),
+                            "frames": len(data),
+                            "duration": round(len(data) / 10.0, 1),
+                        })
+                    except Exception:
+                        pass
+        return render_template("sequences/sequences.html", sequences=seqs)
 
-        if verb == "l":
-            if not seqs:
-                print("  (no saved sequences)")
-            else:
-                for name, steps in seqs.items():
-                    print(f"  {name}: {len(steps)} waypoints")
-            continue
+    @bp.route("/api/sequences/record/start", methods=["POST"])
+    def record_start():
+        global _recording, _record_frames, _record_stop
+        if _recording:
+            return jsonify({"ok": False, "error": "already recording"})
+        _recording = True
+        _record_frames = []
+        _record_stop = threading.Event()
+        stop_ev = _record_stop
 
-        if verb == "rec" and len(parts) == 2:
-            rec_name = parts[1].strip()
-            recording = []
-            print(f"  recording '{rec_name}' — type 'mark' to capture waypoints, 'stop' when done")
-            continue
+        def _loop():
+            global _recording
+            while not stop_ev.is_set():
+                try:
+                    angles = robot.get_angles()
+                    if angles:
+                        _record_frames.append(list(angles))
+                except Exception as e:
+                    print(f"[sequences] record error: {e}")
+                socketio.sleep(0.1)
+            _recording = False
 
-        if verb == "mark":
-            if recording is None:
-                print("  start a recording first: 'rec <name>'")
-                continue
-            angles = robot.get_angles()
-            if angles is None:
-                print("  could not read angles")
-                continue
-            recording.append(list(angles))
-            print(f"  waypoint {len(recording)} captured")
-            continue
+        socketio.start_background_task(_loop)
+        return jsonify({"ok": True})
 
-        if verb == "stop":
-            if recording is None or rec_name is None:
-                print("  not recording")
-                continue
-            seqs[rec_name] = recording
-            _save(seqs)
-            print(f"  saved '{rec_name}' with {len(recording)} waypoints")
-            recording = None
-            rec_name = None
-            continue
+    @bp.route("/api/sequences/record/stop", methods=["POST"])
+    def record_stop():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", f"seq_{int(time.time())}")
+        _record_stop.set()
+        if _record_frames:
+            with open(_seq_path(name), "w") as f:
+                json.dump(_record_frames, f)
+        return jsonify({"ok": True, "frames": len(_record_frames), "name": name})
 
-        if verb == "play" and len(parts) == 2:
-            name = parts[1].strip()
-            if name not in seqs:
-                print(f"  unknown sequence '{name}'")
-                continue
-            steps = seqs[name]
-            print(f"  playing '{name}' ({len(steps)} waypoints) ...")
-            for i, angles in enumerate(steps, 1):
-                print(f"  step {i}/{len(steps)}")
-                robot.move_joints(angles, speed=0.3, wait=True)
-                time.sleep(0.1)
-            print("  done")
-            continue
+    @bp.route("/api/sequences/play", methods=["POST"])
+    def play():
+        global _playback_stop
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "")
+        path = _seq_path(name)
+        if not os.path.exists(path):
+            return jsonify({"ok": False, "error": "not found"})
+        with open(path) as f:
+            frames = json.load(f)
+        _playback_stop = threading.Event()
+        stop_ev = _playback_stop
 
-        print("  examples: 'rec wave', 'mark', 'stop', 'play wave', 'l', 'b'")
+        def _loop():
+            for frame in frames:
+                if stop_ev.is_set():
+                    break
+                try:
+                    robot.move_joints(frame, speed=0.3, wait=True)
+                except Exception as e:
+                    print(f"[sequences] playback error: {e}")
+                    break
+                socketio.sleep(0.05)
+
+        socketio.start_background_task(_loop)
+        return jsonify({"ok": True})
+
+    @bp.route("/api/sequences/stop", methods=["POST"])
+    def stop_play():
+        _playback_stop.set()
+        return jsonify({"ok": True})
+
+    @bp.route("/api/sequences/delete", methods=["POST"])
+    def delete():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "")
+        path = _seq_path(name)
+        if os.path.exists(path):
+            os.remove(path)
+        return jsonify({"ok": True})
+
+    app.register_blueprint(bp)

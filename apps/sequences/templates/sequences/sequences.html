@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Sequences — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Sequences{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">Record New Sequence</div>
+  <div style="display:flex; gap:8px; margin-bottom:10px;">
+    <input id="seq-name" type="text" placeholder="Sequence name…"
+      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;">
+    <button class="btn btn-danger" id="btn-rec" onclick="toggleRecord()">⏺ Record</button>
+  </div>
+  <div id="rec-status" style="font-size:11px;color:var(--text-dim);">Press Record to start capturing poses at 10 Hz</div>
+</div>
+
+<div class="card">
+  <div class="label-sm">Saved Sequences</div>
+  {% if sequences %}
+  {% for seq in sequences %}
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:600;">{{ seq.name }}</div>
+      <div style="font-size:10px;color:var(--text-dim);">{{ seq.frames }} frames · {{ seq.duration }}s</div>
+    </div>
+    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;" onclick="playSeq('{{ seq.name }}')">▶ Play</button>
+    <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;" onclick="deleteSeq('{{ seq.name }}', this)">🗑</button>
+  </div>
+  {% endfor %}
+  <button class="btn btn-danger" style="margin-top:10px;width:100%;" onclick="stopPlay()">■ Stop Playback</button>
+  {% else %}
+  <div style="color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;">No sequences yet. Record one above.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let recording = false;
+
+async function toggleRecord() {
+  if (!recording) {
+    await fetch("/api/sequences/record/start", { method: "POST" });
+    recording = true;
+    document.getElementById("btn-rec").textContent = "⏹ Stop";
+    document.getElementById("btn-rec").className   = "btn btn-surface";
+    document.getElementById("rec-status").textContent = "Recording… move the arm now";
+  } else {
+    const name = document.getElementById("seq-name").value.trim() || "sequence";
+    const r = await fetch("/api/sequences/record/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json();
+    recording = false;
+    document.getElementById("btn-rec").textContent = "⏺ Record";
+    document.getElementById("btn-rec").className   = "btn btn-danger";
+    document.getElementById("rec-status").textContent = `Saved "${name}" — ${d.frames} frames. Reload to see it.`;
+  }
+}
+
+async function playSeq(name) {
+  await fetch("/api/sequences/play", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+async function stopPlay() {
+  await fetch("/api/sequences/stop", { method: "POST" });
+}
+
+async function deleteSeq(name, btn) {
+  await fetch("/api/sequences/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  btn.closest("div[style]").remove();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") window.location.href = "/";
+});
+</script>
+{% endblock %}
