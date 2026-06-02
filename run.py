@@ -1,7 +1,8 @@
-import argparse
-import webbrowser
 import eventlet
 eventlet.monkey_patch()
+
+import argparse
+import webbrowser
 
 from server import create_app, socketio
 
