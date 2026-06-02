@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Telemetry — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Telemetry{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">Joint Angles</div>
+  {% for i in range(6) %}
+  <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border);">
+    <span style="width:24px; font-size:11px; font-weight:700; color:var(--accent);">J{{ i+1 }}</span>
+    <div style="flex:1; height:4px; background:var(--surface2); border-radius:2px;">
+      <div id="tbar-{{ i }}" style="height:100%; background:var(--accent); border-radius:2px; width:50%; transition:width 0.08s;"></div>
+    </div>
+    <span id="tang-{{ i }}" style="width:56px; font-size:12px; font-weight:600; text-align:right; color:var(--accent);">—</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">End Effector (World Frame)</div>
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center;">
+    {% for ax in ['X','Y','Z','RX','RY','RZ'] %}
+    <div>
+      <div id="txyz-{{ loop.index0 }}" style="font-size:16px; font-weight:700; color:var(--warn);">—</div>
+      <div style="font-size:10px; color:var(--text-dim);">{{ ax }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="label-sm">Status</div>
+  <div id="t-status" style="font-size:13px; color:var(--text-dim);">Waiting…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIMITS = [
+  [-123.046875, 123.046875],
+  [-145.0088,   -3.375],
+  [107.866,     287.8675],
+  [-105.46975,  105.46975],
+  [-90,         90],
+  [0,           360],
+];
+
+document.addEventListener("pose_update", (e) => {
+  const { joints, xyz, status } = e.detail;
+  joints.forEach((v, i) => {
+    const [mn, mx] = LIMITS[i];
+    const pct = Math.max(0, Math.min(100, ((v - mn) / (mx - mn)) * 100));
+    document.getElementById(`tbar-${i}`).style.width = pct + "%";
+    document.getElementById(`tang-${i}`).textContent = v.toFixed(2) + "°";
+  });
+  xyz.forEach((v, i) => {
+    document.getElementById(`txyz-${i}`).textContent = v.toFixed(2) + (i < 3 ? "mm" : "°");
+  });
+  document.getElementById("t-status").textContent = status || "OK";
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") window.location.href = "/";
+});
+</script>
+{% endblock %}
