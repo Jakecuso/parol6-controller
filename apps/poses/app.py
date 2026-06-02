@@ -1,72 +1,80 @@
-"""apps/poses/app.py — save and replay named joint-angle poses."""
-
-from __future__ import annotations
-
 import json
 import os
+import time
+from flask import Blueprint, render_template, request, jsonify
 
-NAME = "Poses"
+NAME  = "Poses"
+ICON  = "📍"
+COLOR = "linear-gradient(145deg, #26c6da, #006064)"
+SLUG  = "poses"
 
-POSES_FILE = os.path.join(os.path.dirname(__file__), "../../data/poses.json")
-
-
-def _load() -> dict:
-    try:
-        with open(POSES_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+POSES_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "poses.json")
 
 
-def _save(poses: dict):
+def _load():
+    if os.path.exists(POSES_FILE):
+        try:
+            with open(POSES_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+
+def _save(poses):
     os.makedirs(os.path.dirname(POSES_FILE), exist_ok=True)
     with open(POSES_FILE, "w") as f:
         json.dump(poses, f, indent=2)
 
 
-def run(robot):
-    poses = _load()
-    print("Poses — save and replay named positions")
-    print("  's <name>' = save current pose,  'g <name>' = go to pose")
-    print("  'l' = list poses,  'b' = back")
+def register(app, robot, socketio):
+    bp = Blueprint("poses", __name__, template_folder="templates")
 
-    while True:
-        cmd = input("  poses> ").strip()
-        if not cmd:
-            continue
-        parts = cmd.split(None, 1)
-        verb = parts[0].lower()
+    @bp.route("/apps/poses")
+    def index():
+        return render_template("poses/poses.html", poses=_load())
 
-        if verb in ("b", "back", "q"):
-            return
+    @bp.route("/api/poses/save", methods=["POST"])
+    def save():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", f"pose_{int(time.time())}")
+        try:
+            joints = list(robot.get_angles() or [])
+            xyz    = list(robot.get_pose()   or [])
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)})
+        if not joints:
+            return jsonify({"ok": False, "error": "could not read joint angles"})
+        poses = _load()
+        poses.append({
+            "name":      name,
+            "timestamp": int(time.time()),
+            "joints":    joints,
+            "xyz":       xyz,
+        })
+        _save(poses)
+        return jsonify({"ok": True, "joints": joints, "xyz": xyz})
 
-        if verb == "l":
-            if not poses:
-                print("  (no saved poses)")
-            else:
-                for name, angles in poses.items():
-                    print(f"  {name}: {angles}")
-            continue
+    @bp.route("/api/poses/goto", methods=["POST"])
+    def goto():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "")
+        poses = _load()
+        match = next((p for p in poses if p["name"] == name), None)
+        if not match:
+            return jsonify({"ok": False, "error": "not found"})
+        try:
+            robot.move_joints(match["joints"])
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)})
+        return jsonify({"ok": True})
 
-        if verb == "s" and len(parts) == 2:
-            name = parts[1].strip()
-            angles = robot.get_angles()
-            if angles is None:
-                print("  could not read angles from robot")
-                continue
-            poses[name] = list(angles)
-            _save(poses)
-            print(f"  saved '{name}'")
-            continue
+    @bp.route("/api/poses/delete", methods=["POST"])
+    def delete():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "")
+        poses = [p for p in _load() if p["name"] != name]
+        _save(poses)
+        return jsonify({"ok": True})
 
-        if verb == "g" and len(parts) == 2:
-            name = parts[1].strip()
-            if name not in poses:
-                print(f"  unknown pose '{name}'")
-                continue
-            print(f"  moving to '{name}' ...")
-            robot.move_joints(poses[name], speed=0.3, wait=True)
-            print("  done")
-            continue
-
-        print("  examples: 's home', 'g home', 'l', 'b'")
+    app.register_blueprint(bp)
