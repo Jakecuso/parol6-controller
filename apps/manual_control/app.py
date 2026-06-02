@@ -1,3 +1,4 @@
+import time
 import threading
 from flask import Blueprint, render_template
 
@@ -53,7 +54,7 @@ def register(app, robot, socketio):
                 except Exception as e:
                     print(f"[manual] jog error: {e}")
                     break
-                socketio.sleep(0.15)
+                time.sleep(0.15)
 
         _jog_thread = socketio.start_background_task(_loop)
 

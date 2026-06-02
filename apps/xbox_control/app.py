@@ -1,3 +1,4 @@
+import time
 import threading
 from flask import Blueprint, render_template
 
@@ -49,7 +50,7 @@ def register(app, robot, socketio):
                     pygame.event.pump()
                     if pygame.joystick.get_count() == 0:
                         socketio.emit("remote:state", {"connected": False})
-                        socketio.sleep(0.5)
+                        time.sleep(0.5)
                         continue
 
                     js = pygame.joystick.Joystick(0)
@@ -80,7 +81,7 @@ def register(app, robot, socketio):
                 except Exception as e:
                     print(f"[remote] loop error: {e}")
 
-                socketio.sleep(0.02)
+                time.sleep(0.02)
 
             try:
                 import pygame

@@ -63,7 +63,7 @@ def register(app, robot, socketio):
                         _record_frames.append(list(angles))
                 except Exception as e:
                     print(f"[sequences] record error: {e}")
-                socketio.sleep(0.1)
+                time.sleep(0.1)
             _recording = False
 
         socketio.start_background_task(_loop)
@@ -101,7 +101,7 @@ def register(app, robot, socketio):
                 except Exception as e:
                     print(f"[sequences] playback error: {e}")
                     break
-                socketio.sleep(0.05)
+                time.sleep(0.05)
 
         socketio.start_background_task(_loop)
         return jsonify({"ok": True})

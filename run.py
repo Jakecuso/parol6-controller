@@ -1,7 +1,5 @@
-import eventlet
-eventlet.monkey_patch()
-
 import argparse
+import time
 import webbrowser
 
 from server import create_app, socketio
@@ -38,7 +36,7 @@ def telemetry_loop(app, sock):
                     }, broadcast=True)
                 except Exception:
                     pass
-            sock.sleep(0.02)  # 50 Hz
+            time.sleep(0.02)  # 50 Hz
 
 if __name__ == "__main__":
     args = parse_args()

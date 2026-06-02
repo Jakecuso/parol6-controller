@@ -17,7 +17,7 @@ def create_app(simulate: bool = True):
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.secret_key = "parol6-dev"
 
-    socketio.init_app(app, async_mode="eventlet", cors_allowed_origins="*")
+    socketio.init_app(app, async_mode="threading", cors_allowed_origins="*")
 
     from core.robot import Robot
     robot = Robot(simulate=simulate)
