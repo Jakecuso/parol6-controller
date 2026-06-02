@@ -9,7 +9,6 @@ from server import create_app, socketio
 def parse_args():
     p = argparse.ArgumentParser(description="PAROL6 Web Controller")
     p.add_argument("--real", action="store_true", help="Connect to real hardware")
-    p.add_argument("--no-manage", action="store_true", help="Don't auto-start controller")
     p.add_argument("--port", type=int, default=5000)
     return p.parse_args()
 
@@ -29,12 +28,16 @@ def telemetry_loop(app, sock):
                     "error": False,
                 }, broadcast=True)
             except Exception as e:
-                sock.emit("pose_update", {
-                    "joints": [0.0]*6,
-                    "xyz": [0.0]*6,
-                    "status": "error",
-                    "error": True,
-                }, broadcast=True)
+                print(f"[telemetry] error: {e}")
+                try:
+                    sock.emit("pose_update", {
+                        "joints": [0.0]*6,
+                        "xyz": [0.0]*6,
+                        "status": "error",
+                        "error": True,
+                    }, broadcast=True)
+                except Exception:
+                    pass
             sock.sleep(0.02)  # 50 Hz
 
 if __name__ == "__main__":

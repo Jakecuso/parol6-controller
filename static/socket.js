@@ -8,7 +8,7 @@ window.poseState = {
 };
 
 socket.on("pose_update", (data) => {
-  window.poseState = data;
+  Object.assign(window.poseState, data);
   document.dispatchEvent(new CustomEvent("pose_update", { detail: data }));
 });
 
@@ -20,6 +20,12 @@ socket.on("connect", () => {
 socket.on("disconnect", () => {
   const pill = document.getElementById("status-pill");
   if (pill) pill.innerHTML = '<span class="dot dot-red"></span> Disconnected';
+});
+
+socket.on("connect_error", (err) => {
+  const pill = document.getElementById("status-pill");
+  if (pill) pill.innerHTML = '<span class="dot dot-red"></span> Error';
+  console.error("[socket] connect error:", err.message);
 });
 
 function sendStop() {
