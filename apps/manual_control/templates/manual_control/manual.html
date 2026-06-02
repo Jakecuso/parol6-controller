@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Manual Control — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Manual Control{% endblock %}
+
+{% block content %}
+<!-- Mode toggle + Home button -->
+<div style="display:flex; gap:10px; margin-bottom:14px;">
+  <div class="toggle-row" style="flex:1;">
+    <button class="toggle-btn active" id="btn-joint" onclick="setMode('joint')">Joint</button>
+    <button class="toggle-btn"        id="btn-cart"  onclick="setMode('cartesian')">Cartesian</button>
+  </div>
+  <button class="btn btn-home" onclick="sendHome()">⌂ Home</button>
+</div>
+
+<!-- Selected joint info -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">Selected</div>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <div id="sel-name" style="font-size:16px; font-weight:700;">J1 — Base</div>
+      <div id="sel-range" style="font-size:11px; color:var(--text-dim); margin-top:2px;">range: −123° to 123°</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="display:flex; gap:8px;">
+        <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
+             onmousedown="startJog(selectedJoint,-1)" onmouseup="stopJog()"
+             ontouchstart="startJog(selectedJoint,-1)" ontouchend="stopJog()">←</div>
+        <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
+             onmousedown="startJog(selectedJoint,1)"  onmouseup="stopJog()"
+             ontouchstart="startJog(selectedJoint,1)"  ontouchend="stopJog()">→</div>
+      </div>
+      <div style="color:var(--text-dim);font-size:9px;margin-top:4px;">hold to jog</div>
+    </div>
+  </div>
+</div>
+
+<!-- Joint selector buttons -->
+<div style="display:flex; gap:6px; justify-content:center; margin-bottom:14px;">
+  {% for i in range(1,7) %}
+  <button class="jog-btn" id="sel-{{ i }}" onclick="selectJoint({{ i-1 }})"
+          style="width:32px;height:32px;font-size:12px;font-weight:700;">
+    {{ i }}
+  </button>
+  {% endfor %}
+</div>
+
+<!-- Joint list with live bars -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">All Joints</div>
+  {% set lims = [(-123.046875,123.046875),(-145.0088,-3.375),(107.866,287.8675),(-105.46975,105.46975),(-90.0,90.0),(0.0,360.0)] %}
+  {% for i in range(6) %}
+  <div class="joint-row" id="row-{{ i }}">
+    <div class="joint-label">J{{ i+1 }}</div>
+    <button class="jog-btn" onmousedown="startJog({{ i }},-1)" onmouseup="stopJog()"
+            ontouchstart="startJog({{ i }},-1)" ontouchend="stopJog()">−</button>
+    <div class="bar-wrap">
+      <div class="bar-fill" id="bar-{{ i }}" style="width:50%;"></div>
+      <div class="bar-cursor" id="cur-{{ i }}" style="left:50%;"></div>
+    </div>
+    <button class="jog-btn" onmousedown="startJog({{ i }},1)" onmouseup="stopJog()"
+            ontouchstart="startJog({{ i }},1)" ontouchend="stopJog()">+</button>
+    <div class="angle-val" id="ang-{{ i }}">—</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- End effector readout -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">End Effector</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;">
+    {% for ax in ['X','Y','Z','RX','RY','RZ'] %}
+    <div>
+      <div id="xyz-{{ loop.index0 }}" style="font-size:13px;font-weight:600;color:var(--warn);">—</div>
+      <div style="font-size:9px;color:var(--text-dim);">{{ ax }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Keyboard legend -->
+<div class="card">
+  <div class="label-sm">Keyboard Shortcuts</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>1–6</kbd> Select joint</div>
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>← →</kbd> Jog selected</div>
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>Space</kbd> Stop</div>
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>H</kbd> Home</div>
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>M</kbd> Toggle mode</div>
+    <div style="font-size:10px;color:var(--text-dim);"><kbd>Esc</kbd> Back</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIMITS = [[-123.046875,123.046875],[-145.0088,-3.375],[107.866,287.8675],[-105.46975,105.46975],[-90,90],[0,360]];
+const NAMES  = ["Base","Shoulder","Elbow","Wrist 1","Wrist 2","Tool"];
+const CART_AXES = ["X","Y","Z","RX","RY","RZ"];
+let selectedJoint = 0;
+let mode = "joint";
+let jogging = false;
+
+function selectJoint(idx) {
+  selectedJoint = idx;
+  for (let i = 0; i < 6; i++) {
+    const row = document.getElementById(`row-${i}`);
+    const sel = document.getElementById(`sel-${i+1}`);
+    const isSelected = i === idx;
+    row.style.background = isSelected ? "rgba(30,144,255,0.08)" : "";
+    row.style.borderRadius = isSelected ? "8px" : "";
+    if (sel) {
+      sel.style.borderColor = isSelected ? "var(--accent)" : "";
+      sel.style.color       = isSelected ? "var(--accent)" : "";
+      sel.style.background  = isSelected ? "rgba(30,144,255,0.1)" : "";
+    }
+  }
+  const [mn, mx] = LIMITS[idx];
+  document.getElementById("sel-name").textContent  = `J${idx+1} — ${NAMES[idx]}`;
+  document.getElementById("sel-range").textContent = `range: ${mn}° to ${mx}°`;
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById("btn-joint").className = "toggle-btn" + (m === "joint" ? " active" : "");
+  document.getElementById("btn-cart").className  = "toggle-btn" + (m === "cartesian" ? " active" : "");
+}
+
+function startJog(joint, dir) {
+  if (jogging) stopJog();
+  jogging = true;
+  if (mode === "joint") {
+    socket.emit("manual:jog_start", { type: "joint", joint, direction: dir });
+  } else {
+    socket.emit("manual:jog_start", { type: "cartesian", axis: CART_AXES[joint], direction: dir });
+  }
+}
+
+function stopJog() {
+  if (!jogging) return;
+  jogging = false;
+  socket.emit("manual:jog_stop");
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+  if (e.key === "Escape")                   { window.location.href = "/"; return; }
+  if (e.key === "h" || e.key === "H")       { sendHome(); return; }
+  if (e.key === "m" || e.key === "M")       { setMode(mode === "joint" ? "cartesian" : "joint"); return; }
+  if (e.key === " ")                        { e.preventDefault(); sendStop(); return; }
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= 6)                    { selectJoint(n - 1); return; }
+  if (e.key === "ArrowLeft")               { e.preventDefault(); startJog(selectedJoint, -1); }
+  if (e.key === "ArrowRight")              { e.preventDefault(); startJog(selectedJoint,  1); }
+});
+document.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") stopJog();
+});
+
+document.addEventListener("pose_update", (e) => {
+  const { joints, xyz } = e.detail;
+  joints.forEach((v, i) => {
+    const [mn, mx] = LIMITS[i];
+    const pct = Math.max(0, Math.min(100, ((v - mn) / (mx - mn)) * 100));
+    document.getElementById(`bar-${i}`).style.width = pct + "%";
+    document.getElementById(`cur-${i}`).style.left  = pct + "%";
+    document.getElementById(`ang-${i}`).textContent = v.toFixed(1) + "°";
+  });
+  xyz.forEach((v, i) => {
+    document.getElementById(`xyz-${i}`).textContent = v.toFixed(1) + (i < 3 ? "mm" : "°");
+  });
+  const cur = joints[selectedJoint] || 0;
+  const [mn, mx] = LIMITS[selectedJoint];
+  document.getElementById("sel-range").textContent = `${cur.toFixed(1)}° · range: ${mn}° to ${mx}°`;
+});
+
+selectJoint(0);
+</script>
+{% endblock %}

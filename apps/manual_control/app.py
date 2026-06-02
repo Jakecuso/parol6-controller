@@ -1,52 +1,62 @@
-"""
-apps/manual_control/app.py — App 1: "normal control".
+import threading
+from flask import Blueprint, render_template
 
-A simple keyboard jog menu. This is a STARTER STUB: the structure and menu are
-here, but the actual jog calls go through robot.jog_joint / robot.jog_cartesian,
-which still need to be wired to the installed PAROL6 API (see core/robot.py).
+NAME  = "Manual"
+ICON  = "🎮"
+COLOR = "linear-gradient(145deg, #2196f3, #0d47a1)"
+SLUG  = "manual"
 
-The contract the launcher needs:
-    NAME : str
-    run(robot)
-"""
+JOINT_NAMES  = ["Base", "Shoulder", "Elbow", "Wrist 1", "Wrist 2", "Tool"]
+JOINT_LIMITS = [
+    (-123.046875, 123.046875),
+    (-145.0088,   -3.375),
+    (107.866,     287.8675),
+    (-105.46975,  105.46975),
+    (-90.0,       90.0),
+    (0.0,         360.0),
+]
+HOME_ANGLES = [90.0, -90.0, 180.0, 0.0, 0.0, 180.0]
 
-from __future__ import annotations
+_jog_stop = threading.Event()
+_jog_thread = None
 
-NAME = "Manual Control"
 
+def register(app, robot, socketio):
+    bp = Blueprint("manual", __name__, template_folder="templates")
 
-def run(robot):
-    print("Manual Control — basic jog menu")
-    print("  type a joint number 1-6 then +/- to jog, e.g. '1+'")
-    print("  's' = stop,  'p' = print pose,  'b' = back to home screen")
+    @bp.route("/apps/manual")
+    def index():
+        return render_template("manual_control/manual.html", limits=JOINT_LIMITS)
 
-    while True:
-        cmd = input("  manual> ").strip().lower()
+    app.register_blueprint(bp)
 
-        if cmd in ("b", "back", "q"):
-            return
+    @socketio.on("manual:jog_start")
+    def handle_jog_start(data):
+        global _jog_thread, _jog_stop
+        _jog_stop.set()
+        _jog_stop = threading.Event()
+        stop_event = _jog_stop
 
-        if cmd == "s":
-            robot.stop()
-            print("  stopped")
-            continue
+        jog_type  = data.get("type", "joint")
+        joint_idx = data.get("joint", 0)   # 0-indexed from browser
+        direction = data.get("direction", 1)
+        axis      = data.get("axis", "X")
 
-        if cmd == "p":
-            try:
-                print("  pose:", robot.get_pose())
-            except Exception as e:  # noqa: BLE001
-                print("  could not read pose:", e)
-            continue
+        def _loop():
+            while not stop_event.is_set():
+                try:
+                    if jog_type == "joint":
+                        # convert: browser sends 0-indexed, wrapper wants 1-indexed; direction ±1 → speed_pct ±80
+                        robot.jog_joint(joint_idx + 1, direction * 80.0)
+                    else:
+                        robot.jog_cartesian(axis, direction * 80.0)
+                except Exception as e:
+                    print(f"[manual] jog error: {e}")
+                    break
+                socketio.sleep(0.15)
 
-        # crude parse: "<joint><sign>", e.g. "3+" or "5-"
-        if len(cmd) == 2 and cmd[0] in "123456" and cmd[1] in "+-":
-            joint = int(cmd[0])
-            speed = 20.0 if cmd[1] == "+" else -20.0  # percent
-            try:
-                robot.jog_joint(joint, speed)
-                print(f"  jogging J{joint} at {speed}%  (press 's' to stop)")
-            except NotImplementedError:
-                print("  jog_joint() isn't wired to the API yet — see core/robot.py")
-            continue
+        _jog_thread = socketio.start_background_task(_loop)
 
-        print("  didn't understand that. examples: '2+', '4-', 's', 'p', 'b'")
+    @socketio.on("manual:jog_stop")
+    def handle_jog_stop():
+        _jog_stop.set()
