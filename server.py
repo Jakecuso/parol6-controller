@@ -21,6 +21,7 @@ def create_app(simulate: bool = True):
 
     from core.robot import Robot
     robot = Robot(simulate=simulate)
+    robot.connect()
     app.robot = robot
 
     # Discover and register Blueprint apps

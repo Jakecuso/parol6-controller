@@ -9,7 +9,7 @@ from server import create_app, socketio
 def parse_args():
     p = argparse.ArgumentParser(description="PAROL6 Web Controller")
     p.add_argument("--real", action="store_true", help="Connect to real hardware")
-    p.add_argument("--port", type=int, default=5000)
+    p.add_argument("--port", type=int, default=5050)
     return p.parse_args()
 
 def telemetry_loop(app, sock):
