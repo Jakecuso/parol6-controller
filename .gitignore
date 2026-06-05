@@ -1,5 +1,22 @@
+# Python
 .venv/
-external/
 __pycache__/
 *.pyc
+
+# PAROL6 API (cloned by setup scripts) + controller runtime state
+external/
 .parol6/
+
+# Machine-specific runtime config (each device sets its own)
+config/button_bindings.json
+
+# Recorded data is per-device — keep the folder structure (.gitkeep), ignore content
+data/poses.json
+data/sequences/*.json
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Tooling scratch
+.superpowers/

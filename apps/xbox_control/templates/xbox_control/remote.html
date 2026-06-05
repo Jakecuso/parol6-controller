@@ -4,33 +4,124 @@
 {% block nav_title %}Remote{% endblock %}
 
 {% block content %}
-<div class="card" style="text-align:center; padding:24px; margin-bottom:12px;">
-  <div id="conn-icon" style="font-size:48px; margin-bottom:8px;">🕹️</div>
-  <div id="conn-status" style="font-size:14px; color:var(--text-dim);">Searching for gamepad…</div>
+
+<!-- Connection status -->
+<div class="card" style="text-align:center; padding:18px 14px; margin-bottom:12px;">
+  <div id="conn-icon" style="font-size:40px; margin-bottom:6px;">🕹️</div>
+  <div id="conn-status" style="font-size:13px; color:var(--text-dim);">Searching for gamepad…</div>
 </div>
 
+<!-- Speed dial -->
+<div class="card" style="margin-bottom:12px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div class="label-sm" style="margin-bottom:0;">Gamepad Speed</div>
+    <span class="speed-val" id="speed-display" style="font-size:20px;">{{ jog_speed|int }}</span>
+  </div>
+  <input type="range" class="speed-dial" id="speed-slider"
+         min="5" max="100" value="{{ jog_speed|int }}"
+         oninput="onSpeedInput(this.value)">
+  <div style="display:flex; gap:4px; margin-top:8px;">
+    {% for p in [10, 25, 50, 75, 100] %}
+    <button class="btn btn-surface" style="flex:1;padding:4px 0;font-size:10px;"
+            onclick="setSpeed({{ p }})">{{ p }}%</button>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Stick visualizers -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
   <div class="card" style="text-align:center;">
-    <div class="label-sm">Left Stick (XY)</div>
-    <canvas id="stick-left" width="80" height="80" style="display:block;margin:8px auto 0;"></canvas>
+    <div class="label-sm">Left Stick</div>
+    <canvas id="stick-left" width="80" height="80" style="display:block;margin:8px auto 4px;"></canvas>
+    <div style="font-size:9px;color:var(--text-dim);">X / Y plane</div>
   </div>
   <div class="card" style="text-align:center;">
-    <div class="label-sm">Right Stick (Z / RZ)</div>
-    <canvas id="stick-right" width="80" height="80" style="display:block;margin:8px auto 0;"></canvas>
+    <div class="label-sm">Right Stick</div>
+    <canvas id="stick-right" width="80" height="80" style="display:block;margin:8px auto 4px;"></canvas>
+    <div style="font-size:9px;color:var(--text-dim);">RX / RY rotation</div>
   </div>
 </div>
 
-<div class="card">
-  <div class="label-sm">Control Mapping</div>
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:11px; color:var(--text-dim);">
-    <div>Left X → Cartesian X</div>
-    <div>Left Y → Cartesian Y</div>
-    <div>Right Y → Cartesian Z</div>
-    <div>Right X → Rotate Z</div>
-    <div>Space / STOP → Stop</div>
-    <div>Esc → Back</div>
+<!-- Button state grid -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm" style="margin-bottom:8px;">Buttons</div>
+  <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:5px;">
+    {% for key, label in [("btn_0","A"),("btn_1","B"),("btn_2","X"),("btn_3","Y"),
+                           ("btn_4","LB"),("btn_5","RB"),("btn_6","Back"),("btn_7","Start"),
+                           ("btn_8","L3"),("btn_9","R3")] %}
+    <div id="btn-{{ key }}" style="
+        background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+        padding:7px 4px; text-align:center; font-size:10px; font-weight:700;
+        color:var(--text-dim); transition:all 0.08s;">{{ label }}</div>
+    {% endfor %}
+  </div>
+
+  <!-- D-pad -->
+  <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:8px;">
+    <div style="font-size:9px;color:var(--text-dim);margin-right:4px;">D-Pad</div>
+    {% for key, arrow in [("hat_-1_0","←"),("hat_0_1","↑"),("hat_0_-1","↓"),("hat_1_0","→")] %}
+    <div id="btn-{{ key }}" style="
+        background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+        width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+        font-size:14px; color:var(--text-dim); transition:all 0.08s;">{{ arrow }}</div>
+    {% endfor %}
+  </div>
+
+  <!-- LB/RB Z hint -->
+  <div style="display:flex;gap:4px;margin-top:6px;margin-bottom:2px;">
+    <div style="flex:1;text-align:center;font-size:9px;color:var(--text-dim);">LB — Z ↓</div>
+    <div style="flex:1;text-align:center;font-size:9px;color:var(--text-dim);">RB — Z ↑</div>
+  </div>
+
+  <!-- Trigger bars -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+    <div>
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">LT</div>
+      <div style="height:4px;background:var(--surface2);border-radius:2px;">
+        <div id="lt-bar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.05s;"></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">RT</div>
+      <div style="height:4px;background:var(--surface2);border-radius:2px;">
+        <div id="rt-bar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.05s;"></div>
+      </div>
+    </div>
   </div>
 </div>
+
+<!-- Action feedback -->
+<div id="remote-feedback" style="text-align:center;font-size:12px;color:var(--text-dim);min-height:16px;margin-bottom:12px;"></div>
+
+<!-- Programmable buttons -->
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div class="label-sm" style="margin-bottom:0;">Programmable Buttons</div>
+    <button class="btn btn-primary" style="padding:5px 14px;font-size:11px;" onclick="saveBindings()">Save</button>
+  </div>
+  <div id="bindings-saved" style="display:none;text-align:center;font-size:11px;color:var(--success);margin-bottom:8px;">✓ Saved</div>
+
+  {% for key, label in [
+      ("btn_0","A"), ("btn_1","B"), ("btn_2","X"), ("btn_3","Y"),
+      ("btn_4","LB"), ("btn_5","RB"), ("btn_6","Back"), ("btn_7","Start"),
+      ("btn_8","L3"), ("btn_9","R3"),
+      ("hat_0_1","D-Pad ↑"), ("hat_0_-1","D-Pad ↓"), ("hat_-1_0","D-Pad ←"), ("hat_1_0","D-Pad →")
+    ] %}
+  <div style="display:flex;align-items:center;gap:8px;padding:6px 0;
+       {% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+    <div style="width:52px;font-size:11px;font-weight:700;flex-shrink:0;">{{ label }}</div>
+    <select id="bind-{{ key }}" style="
+        flex:1; background:var(--surface2); color:var(--text);
+        border:1px solid var(--border); border-radius:8px;
+        padding:6px 8px; font-size:12px; outline:none; cursor:pointer;">
+      {% for ak, al in actions.items() %}
+      <option value="{{ ak }}" {% if bindings.get(key,'none') == ak %}selected{% endif %}>{{ al }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endfor %}
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -39,30 +130,110 @@ function drawStick(id, x, y) {
   const c = document.getElementById(id);
   const ctx = c.getContext("2d");
   ctx.clearRect(0, 0, 80, 80);
-  ctx.strokeStyle = "#2a2a35";
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(40, 40, 36, 0, 2 * Math.PI); ctx.stroke();
-  ctx.fillStyle = "#4fc3f7";
-  ctx.beginPath(); ctx.arc(40 + x * 32, 40 + y * 32, 8, 0, 2 * Math.PI); ctx.fill();
+  ctx.strokeStyle = "#2a2a35"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(40, 40, 36, 0, 2*Math.PI); ctx.stroke();
+  ctx.strokeStyle = "#2a2a35"; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(4,40); ctx.lineTo(76,40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40,4); ctx.lineTo(40,76); ctx.stroke();
+  ctx.fillStyle = Math.hypot(x,y) > 0.15 ? "#1e90ff" : "#4a4a5a";
+  ctx.beginPath(); ctx.arc(40 + x*32, 40 + y*32, 7, 0, 2*Math.PI); ctx.fill();
 }
 drawStick("stick-left",  0, 0);
 drawStick("stick-right", 0, 0);
 
-socket.emit("remote:start");
+function onSpeedInput(v) {
+  document.getElementById("speed-display").textContent = v;
+  socket.emit("remote:set_speed", { speed: parseInt(v) });
+}
+function setSpeed(v) {
+  document.getElementById("speed-slider").value = v;
+  onSpeedInput(v);
+}
+
+function setBtn(key, on) {
+  const el = document.getElementById(`btn-${key}`);
+  if (!el) return;
+  el.style.background  = on ? "var(--accent)" : "var(--surface2)";
+  el.style.borderColor = on ? "var(--accent)" : "var(--border)";
+  el.style.color       = on ? "#fff"          : "var(--text-dim)";
+}
 
 socket.on("remote:state", (data) => {
-  if (data.connected) {
-    document.getElementById("conn-icon").textContent   = "✅";
-    document.getElementById("conn-status").textContent = "Gamepad connected";
-    drawStick("stick-left",  data.lx || 0, data.ly || 0);
-    drawStick("stick-right", data.rx || 0, data.ry || 0);
-  } else {
+  if (!data.connected) {
     document.getElementById("conn-icon").textContent   = "🕹️";
     document.getElementById("conn-status").textContent = data.error || "Searching for gamepad…";
     drawStick("stick-left",  0, 0);
     drawStick("stick-right", 0, 0);
+    return;
+  }
+  document.getElementById("conn-icon").textContent   = "✅";
+  document.getElementById("conn-status").textContent = "Connected";
+  drawStick("stick-left",  data.lx || 0, data.ly || 0);
+  drawStick("stick-right", data.rx || 0, data.ry || 0);
+
+  const btns = data.buttons || {};
+  for (const [idx, pressed] of Object.entries(btns)) setBtn(`btn_${idx}`, pressed);
+
+  const hat = data.hat || [0, 0];
+  [[-1,0],[1,0],[0,1],[0,-1]].forEach(([hx,hy]) => setBtn(`hat_${hx}_${hy}`, hat[0]===hx && hat[1]===hy));
+
+  const ltPct = Math.round(((data.lt ?? -1) + 1) / 2 * 100);
+  const rtPct = Math.round(((data.rt ?? -1) + 1) / 2 * 100);
+  document.getElementById("lt-bar").style.width = ltPct + "%";
+  document.getElementById("rt-bar").style.width = rtPct + "%";
+
+  if (data.speed !== undefined) {
+    document.getElementById("speed-slider").value = data.speed;
+    document.getElementById("speed-display").textContent = Math.round(data.speed);
   }
 });
+
+socket.on("remote:speed", (data) => {
+  document.getElementById("speed-slider").value = data.speed;
+  document.getElementById("speed-display").textContent = Math.round(data.speed);
+});
+
+socket.on("remote:feedback", (data) => {
+  const el = document.getElementById("remote-feedback");
+  el.textContent = data.msg;
+  el.style.color = "var(--success)";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ""; }, 3000);
+});
+
+const BINDING_KEYS = [
+  "btn_0","btn_1","btn_2","btn_3","btn_4","btn_5","btn_6","btn_7","btn_8","btn_9",
+  "hat_0_1","hat_0_-1","hat_-1_0","hat_1_0"
+];
+function saveBindings() {
+  const b = {};
+  BINDING_KEYS.forEach(k => {
+    const sel = document.getElementById(`bind-${k}`);
+    if (sel && sel.value !== "none") b[k] = sel.value;
+  });
+  fetch("/apps/remote/bindings", {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(b)
+  }).then(r => {
+    const el = document.getElementById("bindings-saved");
+    if (r.ok) {
+      el.textContent = "✓ Saved";
+      el.style.color = "var(--success)";
+    } else {
+      el.textContent = "✗ Save failed";
+      el.style.color = "var(--danger)";
+    }
+    el.style.display = "block";
+    setTimeout(() => { el.style.display = "none"; }, 2000);
+  }).catch(() => {
+    const el = document.getElementById("bindings-saved");
+    el.textContent = "✗ Save failed";
+    el.style.color = "var(--danger)";
+    el.style.display = "block";
+    setTimeout(() => { el.style.display = "none"; }, 2000);
+  });
+}
+
+socket.emit("remote:start");
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { socket.emit("remote:stop"); window.location.href = "/"; }

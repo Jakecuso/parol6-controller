@@ -1,20 +1,22 @@
 {% extends "base.html" %}
 {% block title %}PAROL6 Controller{% endblock %}
 {% block nav %}
-<div class="nav-bar" style="justify-content:center; flex-direction:column; gap:6px; padding-top:20px;">
+<div class="nav-bar" style="justify-content:center; flex-direction:column; gap:6px; padding-top:20px; padding-bottom:14px;">
   <span class="nav-title" style="font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim)">PAROL6 Controller</span>
   <span class="status-pill" id="status-pill">
-    <span class="dot dot-green"></span> Simulator · Ready
+    <span class="dot dot-red" id="pill-dot"></span>
+    <span id="pill-text">Connecting…</span>
   </span>
 </div>
 {% endblock %}
 
 {% block content %}
+{% if apps %}
 <div style="
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px 16px;
-  padding: 24px 8px;
+  padding: 20px 8px 24px;
   max-width: 340px;
   margin: 0 auto;
 ">
@@ -28,12 +30,55 @@
       font-size: 34px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       position: relative; overflow: hidden;
-    ">
+      transition: transform 0.12s, box-shadow 0.12s;
+    "
+    onmouseenter="this.style.transform='scale(1.06)';this.style.boxShadow='0 8px 28px rgba(0,0,0,0.6)'"
+    onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(0,0,0,0.5)'">
       {{ app.icon }}
-      <div style="position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,0.15),transparent);border-radius:18px 18px 0 0;"></div>
+      <div style="position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,0.15),transparent);border-radius:18px 18px 0 0;pointer-events:none;"></div>
     </div>
     <span style="font-size:11px; color:rgba(255,255,255,0.9); text-shadow:0 1px 4px rgba(0,0,0,0.8);">{{ app.name }}</span>
   </a>
   {% endfor %}
 </div>
+{% else %}
+<div style="text-align:center;padding:48px 20px;color:var(--text-dim);">
+  <div style="font-size:40px;margin-bottom:12px;">🤖</div>
+  <div style="font-size:14px;">No apps loaded.</div>
+  <div style="font-size:11px;margin-top:6px;">Check the terminal for startup errors.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const dot  = document.getElementById("pill-dot");
+const text = document.getElementById("pill-text");
+
+socket.on("connect", () => {
+  dot.className  = "dot dot-green";
+  text.textContent = "Connected";
+});
+socket.on("disconnect", () => {
+  dot.className  = "dot dot-red";
+  text.textContent = "Disconnected";
+});
+
+document.addEventListener("pose_update", (e) => {
+  const { estop, error } = e.detail;
+  if (estop) {
+    dot.className  = "dot dot-red";
+    text.textContent = "E-STOP";
+    text.style.color = "var(--danger)";
+  } else if (error) {
+    dot.className  = "dot dot-red";
+    text.textContent = "Error";
+    text.style.color = "";
+  } else {
+    dot.className  = "dot dot-green";
+    text.textContent = window._robotMode || "Ready";
+    text.style.color = "";
+  }
+});
+</script>
 {% endblock %}

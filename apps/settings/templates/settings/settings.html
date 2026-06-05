@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Settings — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Settings{% endblock %}
+
+{% block content %}
+
+<!-- Connection + enabled status -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">Connection</div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+    <span class="dot {% if connected %}dot-green{% else %}dot-red{% endif %}" id="conn-dot"></span>
+    <span id="conn-text" style="font-size:13px;font-weight:600;">
+      {% if connected %}{{ 'Simulator' if simulate else 'Real hardware' }}{% else %}Not connected{% endif %}
+    </span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+    <span class="dot dot-red" id="enabled-dot"></span>
+    <span id="enabled-text" style="font-size:12px;color:var(--text-dim);">Controller state unknown</span>
+    <button class="btn btn-surface" id="btn-resume"
+            onclick="sendResume()"
+            style="margin-left:auto;padding:5px 12px;font-size:11px;">
+      ▶ Enable
+    </button>
+  </div>
+</div>
+
+<!-- Mode -->
+<div class="card" style="margin-bottom:12px;">
+  <div class="label-sm">Mode</div>
+  <div class="toggle-row" style="margin-top:8px;">
+    <button class="toggle-btn {% if simulate %}active{% endif %}" id="btn-sim"
+            onclick="setMode(true)">Simulator</button>
+    <button class="toggle-btn {% if not simulate %}active{% endif %}" id="btn-real"
+            onclick="setMode(false)">Real Hardware</button>
+  </div>
+</div>
+
+<!-- COM port — only shown for real hardware -->
+<div class="card" id="port-card" style="margin-bottom:12px;{% if simulate %}display:none{% endif %}">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="label-sm" style="margin-bottom:0;">COM Port</div>
+    <button class="btn btn-surface" style="padding:4px 10px;font-size:11px;"
+            onclick="refreshPorts()">↺ Refresh</button>
+  </div>
+  <select id="port-select" style="
+      width:100%; background:var(--surface2); color:var(--text);
+      border:1px solid var(--border); border-radius:10px;
+      padding:10px 12px; font-size:14px; outline:none; cursor:pointer;">
+    <option value="">— select port —</option>
+    {% for p in ports %}
+    <option value="{{ p }}">{{ p }}</option>
+    {% endfor %}
+  </select>
+  <div id="no-ports" style="color:var(--text-dim);font-size:12px;margin-top:8px;
+       {% if ports %}display:none{% endif %}">
+    No serial ports found. Plug in robot and tap Refresh.
+  </div>
+</div>
+
+<!-- Connect -->
+<button class="btn btn-primary" id="btn-connect" onclick="applySettings()"
+        style="width:100%;padding:14px;font-size:15px;border-radius:14px;margin-bottom:6px;">
+  Connect
+</button>
+
+<!-- Feedback -->
+<div id="feedback" style="text-align:center;font-size:12px;color:var(--text-dim);min-height:18px;margin-bottom:16px;"></div>
+
+<!-- Software update -->
+<div class="card" style="margin-bottom:12px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div class="label-sm" style="margin-bottom:0;">Software</div>
+    <button class="btn btn-surface" id="btn-update"
+            onclick="checkUpdate()" style="padding:5px 14px;font-size:11px;">
+      ⟳ Update
+    </button>
+  </div>
+  <div id="version" style="font-size:11px;color:var(--text-dim);margin-top:8px;
+       font-family:monospace;">loading version…</div>
+  <div id="update-status" style="font-size:11px;color:var(--text-dim);margin-top:8px;
+       white-space:pre-wrap;min-height:0;"></div>
+</div>
+
+<!-- How-to -->
+<div class="card">
+  <div class="label-sm">Quick Start — Real Hardware</div>
+  <ol style="font-size:11px;color:var(--text-dim);line-height:2;padding-left:18px;margin-top:6px;">
+    <li>Plug PAROL6 into USB</li>
+    <li>Tap <b>Refresh</b> — pick the <code>/dev/tty.usbserial-*</code> port</li>
+    <li>Switch to <b>Real Hardware</b> and tap <b>Connect</b></li>
+    <li>Tap <b>▶ Enable</b> to power up motors</li>
+    <li>Go to <b>Manual</b> and jog away</li>
+  </ol>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let useSimulate = {{ 'true' if simulate else 'false' }};
+
+function setMode(sim) {
+  useSimulate = sim;
+  document.getElementById("btn-sim").classList.toggle("active", sim);
+  document.getElementById("btn-real").classList.toggle("active", !sim);
+  document.getElementById("port-card").style.display = sim ? "none" : "block";
+}
+
+function refreshPorts() {
+  fetch("/apps/settings/ports")
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById("port-select");
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— select port —</option>';
+      data.ports.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p; opt.textContent = p;
+        if (p === prev) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      document.getElementById("no-ports").style.display =
+        data.ports.length ? "none" : "block";
+    });
+}
+
+function applySettings() {
+  const comPort = document.getElementById("port-select").value;
+  if (!useSimulate && !comPort) {
+    setFeedback("Pick a COM port first", "var(--warn)");
+    return;
+  }
+  document.getElementById("btn-connect").disabled = true;
+  setFeedback("Connecting…", "var(--text-dim)");
+  socket.emit("settings:connect", { simulate: useSimulate, com_port: comPort || null });
+}
+
+function sendResume() {
+  document.getElementById("btn-resume").disabled = true;
+  socket.emit("settings:resume");
+}
+
+socket.on("settings:status", (data) => {
+  document.getElementById("btn-connect").disabled = false;
+  const connDot  = document.getElementById("conn-dot");
+  const connText = document.getElementById("conn-text");
+
+  if (data.ok === null) {
+    setFeedback(data.msg, "var(--text-dim)");
+    return;
+  }
+  if (data.ok) {
+    connDot.className  = "dot dot-green";
+    connText.textContent = data.msg.replace("Connected (", "").replace(")", "");
+    setFeedback("✓ " + data.msg, "var(--success)");
+    updateEnabled(data.enabled);
+  } else {
+    connDot.className  = "dot dot-red";
+    connText.textContent = "Error";
+    setFeedback("✗ " + data.msg, "var(--danger)");
+    updateEnabled(false);
+  }
+});
+
+socket.on("settings:resume_ack", (data) => {
+  document.getElementById("btn-resume").disabled = false;
+  updateEnabled(data.ok);
+  setFeedback(data.ok ? "✓ " + data.msg : "✗ " + data.msg,
+              data.ok ? "var(--success)" : "var(--danger)");
+});
+
+function updateEnabled(enabled) {
+  const dot  = document.getElementById("enabled-dot");
+  const text = document.getElementById("enabled-text");
+  if (enabled === undefined || enabled === null) return;
+  dot.className  = "dot " + (enabled ? "dot-green" : "dot-red");
+  text.textContent = enabled ? "Controller enabled — motors live" : "Controller disabled — tap Enable";
+  text.style.color = enabled ? "var(--text)" : "var(--text-dim)";
+}
+
+function setFeedback(msg, color) {
+  const el = document.getElementById("feedback");
+  el.textContent = msg;
+  el.style.color = color;
+}
+
+// ── Software update ──────────────────────────────────────────────────────────
+function loadVersion() {
+  fetch("/apps/settings/version")
+    .then(r => r.json())
+    .then(d => { document.getElementById("version").textContent = d.version; })
+    .catch(() => { document.getElementById("version").textContent = "version unavailable"; });
+}
+loadVersion();
+
+let _reconnectTimer = null;
+function checkUpdate() {
+  if (!confirm("Pull the latest version from GitHub and restart?\n\nThe arm will be halted first.")) return;
+  document.getElementById("btn-update").disabled = true;
+  setUpdate("Starting update…", "var(--text-dim)");
+  socket.emit("settings:update");
+}
+
+function setUpdate(msg, color) {
+  const el = document.getElementById("update-status");
+  el.textContent = msg;
+  el.style.color = color || "var(--text-dim)";
+}
+
+socket.on("settings:update_status", (d) => {
+  let color = "var(--text-dim)";
+  if (d.ok === true)  color = "var(--success)";
+  if (d.ok === false) color = "var(--danger)";
+  setUpdate(d.msg, color);
+
+  if (d.stage === "busy") {
+    document.getElementById("btn-update").disabled = false;
+    return;
+  }
+  // Terminal states re-enable the button (or wait for reconnect on restart).
+  if (d.ok === false || d.stage === "uptodate") {
+    document.getElementById("btn-update").disabled = false;
+  }
+  if (d.stage === "restart" && d.ok) {
+    // Server is about to exit and come back; poll until it answers again.
+    setUpdate(d.msg + "\nReconnecting…", "var(--success)");
+    clearInterval(_reconnectTimer);
+    _reconnectTimer = setInterval(() => {
+      fetch("/apps/settings/version", { cache: "no-store" })
+        .then(r => { if (r.ok) location.reload(); })
+        .catch(() => {});
+    }, 2000);
+  }
+});
+</script>
+{% endblock %}

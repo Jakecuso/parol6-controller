@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block title %}3D View — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}3D View{% endblock %}
+
+{% block content %}
+<div id="viewer-wrap" style="
+  position: relative; border-radius: 14px; overflow: hidden;
+  background: #06080f; height: 70vh; min-height: 380px;
+  margin: -4px 0 12px;
+">
+  <canvas id="c" style="display:block; width:100%; height:100%;"></canvas>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" style="
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:#06080f; z-index:20;
+    transition: opacity 0.4s;
+  ">
+    <div style="font-size:36px; margin-bottom:10px;">🦾</div>
+    <div style="font-size:13px; color:#8b8b9a; margin-bottom:6px;">Loading robot model…</div>
+    <div id="load-bar-wrap" style="width:140px; height:3px; background:#1c1c24; border-radius:2px;">
+      <div id="load-bar" style="height:100%; width:0%; background:#1e90ff; border-radius:2px; transition:width 0.2s;"></div>
+    </div>
+    <div id="load-text" style="font-size:10px; color:#4a4a5a; margin-top:6px;">0 / 7</div>
+  </div>
+
+  <!-- Drag hint (fades after first interaction) -->
+  <div id="hint" style="
+    position:absolute; top:10px; right:10px;
+    font-size:9px; color:rgba(255,255,255,0.25); pointer-events:none;
+    letter-spacing:0.3px;
+  ">drag · scroll · right-drag</div>
+
+  <!-- Joint angle overlay -->
+  <div style="
+    position:absolute; bottom:12px; left:12px;
+    background:rgba(6,8,15,0.82); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,0.06); border-radius:10px;
+    padding:9px 12px;
+  ">
+    <div style="font-size:8px; font-weight:700; letter-spacing:1.5px; color:#4a4a5a; text-transform:uppercase; margin-bottom:5px;">Joints</div>
+    {% for i in range(1,7) %}
+    <div style="display:flex; gap:8px; align-items:baseline; margin-bottom:2px;">
+      <span style="font-size:9px; font-weight:700; color:#1e90ff; width:14px; flex-shrink:0;">J{{ i }}</span>
+      <span id="ov-j{{ i }}" style="font-size:11px; font-weight:600; color:#e0e8f0; min-width:54px; font-variant-numeric:tabular-nums;">—</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- TCP overlay -->
+  <div style="
+    position:absolute; bottom:12px; right:12px;
+    background:rgba(6,8,15,0.82); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,0.06); border-radius:10px;
+    padding:9px 12px;
+  ">
+    <div style="font-size:8px; font-weight:700; letter-spacing:1.5px; color:#4a4a5a; text-transform:uppercase; margin-bottom:5px;">TCP</div>
+    {% set axes  = ['X','Y','Z','RX','RY','RZ'] %}
+    {% set colors = ['#ef5350','#66bb6a','#42a5f5','#ef5350','#66bb6a','#42a5f5'] %}
+    {% for i in range(6) %}
+    <div style="display:flex; gap:6px; align-items:baseline; margin-bottom:2px;">
+      <span style="font-size:9px; font-weight:700; color:{{ colors[i] }}; width:20px; flex-shrink:0;">{{ axes[i] }}</span>
+      <span id="ov-tcp{{ i }}" style="font-size:11px; font-weight:600; color:#e0e8f0; min-width:58px; font-variant-numeric:tabular-nums;">—</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.addEventListener('error', e => {
+  const el = document.getElementById('load-text');
+  if (el) el.textContent = 'JS error: ' + (e.message || e.type);
+  const bar = document.getElementById('load-bar');
+  if (bar) bar.style.background = '#ff3b30';
+  console.error('Visualizer error:', e);
+});
+</script>
+<script type="module">
+import * as THREE from '/static/three/three.module.js';
+import { STLLoader }     from '/static/three/STLLoader.js';
+import { OrbitControls } from '/static/three/OrbitControls.js';
+
+// ── URDF joint chain ─────────────────────────────────────────────────────────
+// Each entry: joint from parent link to child link.
+// xyz/rpy: joint origin in parent frame. axis: rotation axis in joint frame.
+// visualOff: mesh visual origin offset (only L6 has one).
+const PI = Math.PI;
+const CHAIN = [
+  { mesh:'base_link_simplified.stl', xyz:[0,0,0],                  rpy:[0,0,0],       axis:[0,0,1], isBase:true  },
+  { mesh:'L1_simplified.stl',        xyz:[0,0,0.1105],              rpy:[0,0,0],       axis:[0,0,1] },
+  { mesh:'L2_simplified.stl',        xyz:[0.023420721,0,0],         rpy:[-PI/2,0,0],   axis:[0,0,1] },
+  { mesh:'L3_simplified.stl',        xyz:[0.18,0,0],                rpy:[PI,0,0],      axis:[0,0,1] },
+  { mesh:'L4_simplified.stl',        xyz:[-0.0435,0.17635,0],       rpy:[PI/2,0,0],    axis:[0,0,1] },
+  { mesh:'L5_simplified.stl',        xyz:[0,0,0],                   rpy:[-PI/2,0,0],   axis:[0,0,1] },
+  { mesh:'L6_simplified.stl',        xyz:[0,0.037,0],               rpy:[PI/2,0,0],    axis:[0,0,1], visualOff:[0,0,-0.021] },
+];
+
+// Home angles used for initial display before telemetry arrives
+const HOME_DEG = [90, -90, 180, 0, 0, 180];
+
+// ── Scene ────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x06080f, 1);
+renderer.toneMapping = THREE.LinearToneMapping;
+renderer.toneMappingExposure = 2.2;
+
+const scene = new THREE.Scene();
+// no fog — robot stays visible at any distance
+
+// Camera
+const camera = new THREE.PerspectiveCamera(42, 1, 0.001, 10);
+camera.position.set(0.48, 0.38, 0.48);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0.22, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 0.05;
+controls.maxDistance = 8.0;
+controls.update();
+
+// Fade hint on first interaction
+canvas.addEventListener('pointerdown', () => {
+  const h = document.getElementById('hint');
+  if (h) { h.style.opacity = '0'; setTimeout(() => h.remove(), 600); }
+}, { once: true });
+
+// ── Lighting ─────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 6.0));
+
+const sun = new THREE.DirectionalLight(0xffffff, 5.0);
+sun.position.set(0.6, 1.2, 0.8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.near = 0.01;
+sun.shadow.camera.far  = 3;
+sun.shadow.camera.left = sun.shadow.camera.bottom = -0.5;
+sun.shadow.camera.right = sun.shadow.camera.top   =  0.5;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0xfff0c0, 3.0);
+fill.position.set(-1, 0.3, -0.5);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffffff, 2.0);
+rim.position.set(0, -1, -1);
+scene.add(rim);
+
+// ── Floor grid ───────────────────────────────────────────────────────────────
+const gridH = new THREE.GridHelper(0.7, 14, 0x1e2040, 0x141428);
+gridH.position.y = 0;
+gridH.receiveShadow = true;
+scene.add(gridH);
+
+// Shadow catcher
+const shadowPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.8, 0.8),
+  new THREE.ShadowMaterial({ opacity: 0.35 })
+);
+shadowPlane.rotation.x = -PI / 2;
+shadowPlane.receiveShadow = true;
+scene.add(shadowPlane);
+
+// ── Materials ────────────────────────────────────────────────────────────────
+const bodyMat = new THREE.MeshStandardMaterial({
+  color: 0xffc800, metalness: 0.0, roughness: 0.55,
+  side: THREE.DoubleSide,
+});
+const baseMat = new THREE.MeshStandardMaterial({
+  color: 0xe6a800, metalness: 0.0, roughness: 0.6,
+  side: THREE.DoubleSide,
+});
+const jointMat = new THREE.MeshStandardMaterial({
+  color: 0xff6b35, metalness: 0.3, roughness: 0.5,
+  emissive: 0x220800, emissiveIntensity: 0.3,
+});
+const tcpMat = new THREE.MeshStandardMaterial({
+  color: 0x00e5ff, emissive: 0x004455, emissiveIntensity: 0.6,
+  metalness: 0.2, roughness: 0.3,
+});
+
+// ── URDF coordinate conversion ────────────────────────────────────────────────
+// URDF is Z-up; Three.js is Y-up. Rotate the root -90° around X.
+const worldGroup = new THREE.Group();
+worldGroup.rotation.x = -PI / 2;
+scene.add(worldGroup);
+
+// ── Build kinematic chain ─────────────────────────────────────────────────────
+const loader    = new STLLoader();
+const pivots    = [];   // pivot Groups[0..5] for joints L1..L6
+let   loadedCount = 0;
+const TOTAL_MESHES = CHAIN.length;
+
+function updateLoadUI(err) {
+  document.getElementById('load-bar').style.width = (loadedCount / TOTAL_MESHES * 100) + '%';
+  document.getElementById('load-text').textContent = err
+    ? `${loadedCount} / ${TOTAL_MESHES} (${err})`
+    : `${loadedCount} / ${TOTAL_MESHES}`;
+  if (loadedCount >= TOTAL_MESHES) {
+    const ov = document.getElementById('loading-overlay');
+    ov.style.opacity = '0';
+    setTimeout(() => ov.remove(), 450);
+  }
+}
+
+// Fallback: hide overlay after 12s regardless
+setTimeout(() => {
+  const ov = document.getElementById('loading-overlay');
+  if (ov) { ov.style.opacity = '0'; setTimeout(() => ov.remove(), 450); }
+}, 12000);
+
+function loadMesh(url, onLoad) {
+  loader.load(url, onLoad, undefined, err => {
+    console.error('STL load failed:', url, err);
+    loadedCount++;
+    updateLoadUI('load err');
+  });
+}
+
+function makeSphere(r, mat) {
+  return new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat);
+}
+
+// Base link (fixed, no joint pivot)
+const baseGroup = new THREE.Group();
+worldGroup.add(baseGroup);
+loadMesh('/apps/visualizer/mesh/base_link_simplified.stl', geo => {
+  geo.computeVertexNormals();
+  baseGroup.add(new THREE.Mesh(geo, baseMat));
+  loadedCount++; updateLoadUI();
+});
+
+// Joint chain: each joint's pivot is a child of the previous link group
+let parentGroup = baseGroup;
+for (let i = 1; i < CHAIN.length; i++) {
+  const jdef = CHAIN[i];
+
+  // Pivot group at joint origin in parent's frame
+  const pivot = new THREE.Group();
+  pivot.position.set(...jdef.xyz);
+  parentGroup.add(pivot);
+
+  // Orange joint marker sphere
+  const jMarker = makeSphere(0.009, jointMat.clone());
+  pivot.add(jMarker);
+
+  // Link group (child of pivot — rotates with the joint)
+  const linkGroup = new THREE.Group();
+  pivot.add(linkGroup);
+
+  // Apply visual offset if any (L6 mesh is -0.021 in Z)
+  if (jdef.visualOff) {
+    const offGroup = new THREE.Group();
+    offGroup.position.set(...jdef.visualOff);
+    linkGroup.add(offGroup);
+    loadMesh(`/apps/visualizer/mesh/${jdef.mesh}`, geo => {
+      geo.computeVertexNormals();
+      offGroup.add(new THREE.Mesh(geo, bodyMat));
+      loadedCount++; updateLoadUI();
+    });
+  } else {
+    loadMesh(`/apps/visualizer/mesh/${jdef.mesh}`, geo => {
+      geo.computeVertexNormals();
+      linkGroup.add(new THREE.Mesh(geo, bodyMat));
+      loadedCount++; updateLoadUI();
+    });
+  }
+
+  // TCP marker on the last link
+  if (i === CHAIN.length - 1) {
+    const tcp = makeSphere(0.011, tcpMat);
+    linkGroup.add(tcp);
+  }
+
+  pivots.push({ pivot, rpy: jdef.rpy, axis: new THREE.Vector3(...jdef.axis) });
+  parentGroup = linkGroup;
+}
+
+// ── Forward kinematics update ─────────────────────────────────────────────────
+const _rpyQ  = new THREE.Quaternion();
+const _axisQ = new THREE.Quaternion();
+const _euler = new THREE.Euler();
+
+function updateFK(jointsDeg) {
+  pivots.forEach(({ pivot, rpy, axis }, i) => {
+    const rad = (jointsDeg[i] ?? HOME_DEG[i]) * (PI / 180);
+    _euler.set(rpy[0], rpy[1], rpy[2], 'XYZ');
+    _rpyQ.setFromEuler(_euler);
+    _axisQ.setFromAxisAngle(axis, rad);
+    pivot.quaternion.copy(_rpyQ).multiply(_axisQ);
+  });
+}
+
+// Init with home pose so model looks correct immediately
+updateFK(HOME_DEG);
+
+// ── Resize handler ────────────────────────────────────────────────────────────
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+// ── Overlays ──────────────────────────────────────────────────────────────────
+const TCP_UNITS = ['mm','mm','mm','°','°','°'];
+
+function updateOverlays(joints, xyz) {
+  if (joints) {
+    joints.forEach((v, i) => {
+      const el = document.getElementById(`ov-j${i + 1}`);
+      if (el) el.textContent = v.toFixed(1) + '°';
+    });
+  }
+  if (xyz) {
+    xyz.forEach((v, i) => {
+      const el = document.getElementById(`ov-tcp${i}`);
+      if (el) el.textContent = v != null ? v.toFixed(1) + TCP_UNITS[i] : '—';
+    });
+  }
+}
+
+// ── Animation loop ────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  resize();
+  const ps = window.poseState;
+  if (ps?.joints) {
+    updateFK(ps.joints);
+    updateOverlays(ps.joints, ps.xyz);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') window.location.href = '/';
+});
+</script>
+{% endblock %}

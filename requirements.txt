@@ -1,10 +1,21 @@
-# The PAROL6 Python API is NOT on PyPI — install it from its repo (the setup
-# scripts in scripts/ do this for you):
+# ─────────────────────────────────────────────────────────────────────────────
+# PAROL6 Controller — Python dependencies
+#
+# The PAROL6 Python API is NOT on PyPI — the setup scripts in scripts/ clone and
+# install it from its repo for you:
 #
 #   git clone https://github.com/PCrnjak/PAROL6-python-API
 #   pip install ./PAROL6-python-API
 #
 # It pulls in its own pinned robotics-toolbox-python build and other deps.
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Needed only by the Xbox Control app. Uncomment when you start that app.
-# pygame>=2.5
+# Web server / live updates
+Flask>=3.0
+Flask-SocketIO>=5.5
+
+# Serial port discovery (auto-detects the arm's USB port on the Pi)
+pyserial>=3.5
+
+# Bluetooth / USB gamepad teleop (Remote app)
+pygame>=2.5

@@ -24,6 +24,29 @@ API notes (verified against installed parol6 0.2.7 / waldoctl):
 
 from __future__ import annotations
 
+import threading
+import time
+
+
+def find_serial_port() -> str | None:
+    """Auto-detect the PAROL6 control board's USB serial port.
+
+    Returns the first plausible device (Pi: /dev/ttyACM* or /dev/ttyUSB*;
+    macOS: /dev/tty.usbserial-* / /dev/tty.usbmodem*), or None if nothing
+    USB-serial-looking is plugged in.
+    """
+    try:
+        from serial.tools import list_ports
+    except Exception:
+        return None
+
+    keys = ("ttyacm", "ttyusb", "usbserial", "usbmodem")
+    for p in list_ports.comports():
+        dev = p.device or ""
+        if any(k in dev.lower() for k in keys):
+            return dev
+    return None
+
 
 class Robot:
     def __init__(
@@ -40,23 +63,93 @@ class Robot:
 
         self._client = None    # parol6.RobotClient (sync)
         self._robot_def = None  # parol6.Robot (server lifecycle manager)
+        self._connecting = False  # guards connect_async against double-starts
+
+    @property
+    def connected(self) -> bool:
+        return self._client is not None
 
     # ---- lifecycle -------------------------------------------------------
 
-    def connect(self):
+    def connect(self, com_port: str | None = None):
         from parol6 import Robot as _RobotDef, RobotClient
 
+        # Real hardware with no explicit port → try to auto-detect the USB board.
+        if not self.simulate and com_port is None:
+            com_port = find_serial_port()
+            if com_port:
+                print(f"[robot] auto-detected serial port: {com_port}")
+
         if self.manage_controller:
-            # Robot.start() blocks until the controller subprocess is ready.
             self._robot_def = _RobotDef(host=self.host, port=self.port)
-            self._robot_def.start()
+            try:
+                self._robot_def.start(com_port=com_port)
+            except RuntimeError as e:
+                if "already running" in str(e).lower():
+                    print(f"[robot] attaching to existing controller at {self.host}:{self.port}")
+                else:
+                    raise
 
         self._client = RobotClient(host=self.host, port=self.port)
-        # wait_ready is a no-op if start() already confirmed readiness, but
-        # it's cheap insurance when connecting to an externally-managed server.
         self._client.wait_ready(timeout=10)
         self._client.simulator(self.simulate)
         return self
+
+    def connect_async(self, com_port: str | None = None, retry_delay: float = 4.0,
+                      on_connect=None):
+        """Connect in a background thread, retrying forever until it succeeds.
+
+        Used at boot on the Pi: when the Pi and the arm power up together, the
+        control board's USB port may take several seconds to enumerate. Rather
+        than crash (and lean on systemd to restart us), we bring the web server
+        up immediately and keep retrying the hardware connection until it lands.
+        `on_connect(robot)` is called once, after the first successful connect.
+        """
+        if self._connecting or self.connected:
+            return
+
+        self._connecting = True
+
+        def _worker():
+            attempt = 0
+            while not self.connected:
+                attempt += 1
+                try:
+                    self.connect(com_port=com_port)
+                    try:
+                        self.resume()  # straight to live: enable motors on boot
+                    except Exception:
+                        pass
+                    print(f"[robot] connected on attempt {attempt}")
+                    if on_connect:
+                        try:
+                            on_connect(self)
+                        except Exception as e:
+                            print(f"[robot] on_connect callback error: {e}")
+                    break
+                except Exception as e:
+                    if attempt == 1 or attempt % 5 == 0:
+                        print(f"[robot] connect attempt {attempt} failed ({e}); "
+                              f"retrying every {retry_delay:.0f}s…")
+                    # tear down any half-built state before the next try
+                    try:
+                        self.close()
+                    except Exception:
+                        pass
+                    time.sleep(retry_delay)
+            self._connecting = False
+
+        threading.Thread(target=_worker, daemon=True, name="robot-connect").start()
+
+    def reconfigure(self, simulate: bool, com_port: str | None = None):
+        """Disconnect, apply new settings, reconnect. Called from Settings app."""
+        self.close()
+        self.simulate = simulate
+        self.connect(com_port=com_port)
+        try:
+            self.resume()
+        except Exception:
+            pass  # E-stop may be pressed; jog path will surface the error
 
     def close(self):
         try:
@@ -109,12 +202,28 @@ class Robot:
     # ---- control ---------------------------------------------------------
 
     def stop(self):
-        """Halt all motion immediately."""
+        """Halt all motion immediately (also disables controller)."""
         return self.client.halt()
 
     def disable(self):
-        """Alias for stop — parol6 0.2.7 has no separate disable command."""
+        """Alias for stop."""
         return self.client.halt()
+
+    def resume(self):
+        """Re-enable controller after halt(). Must call before motion works again."""
+        return self.client.resume()
+
+    def is_enabled(self) -> bool:
+        """Return True if controller is in enabled (driveable) state."""
+        try:
+            # status() has no .enabled field; use E-stop io[4]: 1=not pressed, 0=pressed
+            s = self.client.status()
+            io = getattr(s, "io", None)
+            if io and len(io) > 4:
+                return bool(io[4])
+            return True
+        except Exception:
+            return False
 
     def set_tool(self, name: str):
         """e.g. 'NONE' or 'PNEUMATIC'. See parol6 tool registry."""
@@ -141,10 +250,19 @@ class Robot:
 
         axis      : one of X Y Z RX RY RZ (case-insensitive)
         speed_pct : velocity as a percentage; negative reverses direction
-        duration  : seconds to run the jog pulse (default 0.2 s)
-        frame     : coordinate frame, default 'WRF' (world reference frame)
         """
         return self.client.jog_l(frame, axis.upper(), speed_pct / 100.0, duration)
+
+    def jog_cartesian_multi(self, axes_speeds: dict, duration: float = 0.2,
+                            frame: str = "WRF"):
+        """Jog multiple Cartesian axes simultaneously.
+
+        axes_speeds : {"X": 50, "Y": -50} — keys are axis names, values are
+                      signed speed percent (negative = reverse direction).
+        """
+        axes = list(axes_speeds.keys())
+        speeds = [axes_speeds[ax] / 100.0 for ax in axes]
+        return self.client.jog_l(frame, axes=axes, speeds_list=speeds, duration=duration)
 
     def move_joints(self, angles_deg: list, speed: float = 0.3, wait: bool = True):
         """Move to absolute joint angles (degrees, list of 6).

@@ -47,7 +47,7 @@ const LIMITS = [
 ];
 
 document.addEventListener("pose_update", (e) => {
-  const { joints, xyz, status } = e.detail;
+  const { joints, xyz, status, estop, error } = e.detail;
   joints.forEach((v, i) => {
     const [mn, mx] = LIMITS[i];
     const pct = Math.max(0, Math.min(100, ((v - mn) / (mx - mn)) * 100));
@@ -55,9 +55,23 @@ document.addEventListener("pose_update", (e) => {
     document.getElementById(`tang-${i}`).textContent = v.toFixed(2) + "°";
   });
   xyz.forEach((v, i) => {
-    document.getElementById(`txyz-${i}`).textContent = v.toFixed(2) + (i < 3 ? "mm" : "°");
+    document.getElementById(`txyz-${i}`).textContent =
+      v != null ? v.toFixed(2) + (i < 3 ? "mm" : "°") : "—";
   });
-  document.getElementById("t-status").textContent = status || "OK";
+  const el = document.getElementById("t-status");
+  if (estop) {
+    el.textContent = "⚠ E-STOP ACTIVE";
+    el.style.color = "var(--danger)";
+    el.style.fontWeight = "700";
+  } else if (error) {
+    el.textContent = "Error — check terminal";
+    el.style.color = "var(--danger)";
+    el.style.fontWeight = "";
+  } else {
+    el.textContent = status || "OK";
+    el.style.color = "var(--success)";
+    el.style.fontWeight = "";
+  }
 });
 
 document.addEventListener("keydown", (e) => {

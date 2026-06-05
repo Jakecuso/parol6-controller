@@ -8,45 +8,62 @@
   <div class="label-sm">Record New Sequence</div>
   <div style="display:flex; gap:8px; margin-bottom:10px;">
     <input id="seq-name" type="text" placeholder="Sequence name…"
-      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;">
+      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;"
+      onkeydown="if(event.key==='Enter') toggleRecord()">
     <button class="btn btn-danger" id="btn-rec" onclick="toggleRecord()">⏺ Record</button>
   </div>
   <div id="rec-status" style="font-size:11px;color:var(--text-dim);">Press Record to start capturing poses at 10 Hz</div>
 </div>
 
 <div class="card">
-  <div class="label-sm">Saved Sequences</div>
-  {% if sequences %}
-  {% for seq in sequences %}
-  <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
-    <div style="flex:1;">
-      <div style="font-size:13px;font-weight:600;">{{ seq.name }}</div>
-      <div style="font-size:10px;color:var(--text-dim);">{{ seq.frames }} frames · {{ seq.duration }}s</div>
-    </div>
-    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;" onclick="playSeq('{{ seq.name }}')">▶ Play</button>
-    <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;" onclick="deleteSeq('{{ seq.name }}', this)">🗑</button>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div class="label-sm" style="margin-bottom:0;">Saved Sequences</div>
+    <button class="btn btn-danger" id="btn-stop-play"
+            style="padding:4px 12px;font-size:11px;display:none;"
+            onclick="stopPlay()">■ Stop</button>
   </div>
-  {% endfor %}
-  <button class="btn btn-danger" style="margin-top:10px;width:100%;" onclick="stopPlay()">■ Stop Playback</button>
-  {% else %}
-  <div style="color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;">No sequences yet. Record one above.</div>
-  {% endif %}
+
+  <div id="seq-list">
+    {% if sequences %}
+    {% for seq in sequences %}
+    <div class="seq-item" data-name="{{ seq.name }}"
+         style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">{{ seq.name }}</div>
+        <div style="font-size:10px;color:var(--text-dim);">{{ seq.frames }} frames · {{ seq.duration }}s</div>
+      </div>
+      <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;"
+              onclick="playSeq('{{ seq.name }}', this)">▶ Play</button>
+      <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;"
+              onclick="deleteSeq('{{ seq.name }}', this)">🗑</button>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div id="empty-msg" style="color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;">
+      No sequences yet. Record one above.
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let recording = false;
+let playingName = null;
 
 async function toggleRecord() {
+  const btn = document.getElementById("btn-rec");
   if (!recording) {
     await fetch("/api/sequences/record/start", { method: "POST" });
     recording = true;
-    document.getElementById("btn-rec").textContent = "⏹ Stop";
-    document.getElementById("btn-rec").className   = "btn btn-surface";
+    btn.textContent = "⏹ Stop";
+    btn.className   = "btn btn-surface";
     document.getElementById("rec-status").textContent = "Recording… move the arm now";
+    document.getElementById("rec-status").style.color = "var(--danger)";
   } else {
     const name = document.getElementById("seq-name").value.trim() || "sequence";
+    btn.disabled = true;
     const r = await fetch("/api/sequences/record/stop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -54,13 +71,49 @@ async function toggleRecord() {
     });
     const d = await r.json();
     recording = false;
-    document.getElementById("btn-rec").textContent = "⏺ Record";
-    document.getElementById("btn-rec").className   = "btn btn-danger";
-    document.getElementById("rec-status").textContent = `Saved "${name}" — ${d.frames} frames. Reload to see it.`;
+    btn.disabled  = false;
+    btn.textContent = "⏺ Record";
+    btn.className   = "btn btn-danger";
+    document.getElementById("seq-name").value = "";
+    document.getElementById("rec-status").textContent = `Saved "${name}" — ${d.frames} frames`;
+    document.getElementById("rec-status").style.color = "var(--success)";
+    appendSeqRow(name, d.frames);
+    setTimeout(() => {
+      document.getElementById("rec-status").textContent = "Press Record to start capturing poses at 10 Hz";
+      document.getElementById("rec-status").style.color = "var(--text-dim)";
+    }, 4000);
   }
 }
 
-async function playSeq(name) {
+function appendSeqRow(name, frames) {
+  const empty = document.getElementById("empty-msg");
+  if (empty) empty.remove();
+  const duration = (frames / 10.0).toFixed(1);
+  const div = document.createElement("div");
+  div.className = "seq-item";
+  div.dataset.name = name;
+  div.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);";
+  div.innerHTML = `
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:600;">${name}</div>
+      <div style="font-size:10px;color:var(--text-dim);">${frames} frames · ${duration}s</div>
+    </div>
+    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;"
+            onclick="playSeq('${name}', this)">▶ Play</button>
+    <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;"
+            onclick="deleteSeq('${name}', this)">🗑</button>`;
+  document.getElementById("seq-list").appendChild(div);
+}
+
+async function playSeq(name, btn) {
+  // Highlight active row
+  document.querySelectorAll(".seq-item button.btn-primary").forEach(b => {
+    b.textContent = "▶ Play"; b.className = "btn btn-primary"; b.style.cssText = "padding:5px 12px;font-size:11px;";
+  });
+  btn.textContent = "▶ Playing…";
+  btn.className = "btn btn-home";
+  playingName = name;
+  document.getElementById("btn-stop-play").style.display = "block";
   await fetch("/api/sequences/play", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,6 +123,11 @@ async function playSeq(name) {
 
 async function stopPlay() {
   await fetch("/api/sequences/stop", { method: "POST" });
+  playingName = null;
+  document.getElementById("btn-stop-play").style.display = "none";
+  document.querySelectorAll(".seq-item button.btn-home").forEach(b => {
+    b.textContent = "▶ Play"; b.className = "btn btn-primary"; b.style.cssText = "padding:5px 12px;font-size:11px;";
+  });
 }
 
 async function deleteSeq(name, btn) {
@@ -78,7 +136,14 @@ async function deleteSeq(name, btn) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
-  btn.closest("div[style]").remove();
+  btn.closest(".seq-item").remove();
+  if (!document.querySelector(".seq-item")) {
+    const el = document.createElement("div");
+    el.id = "empty-msg";
+    el.style.cssText = "color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;";
+    el.textContent = "No sequences yet. Record one above.";
+    document.getElementById("seq-list").appendChild(el);
+  }
 }
 
 document.addEventListener("keydown", (e) => {

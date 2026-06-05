@@ -1,95 +1,152 @@
 # PAROL6 Controller
 
-Custom control software for a **PAROL6** 6-axis desktop robotic arm.
+A self-hosted web controller for the **[PAROL6](https://source-robotics.com/products/parol6)**
+6-axis desktop robotic arm. Runs headless on a **Raspberry Pi**, plug-and-play:
+power it on and it auto-starts, connects to the arm, and serves a phone-friendly
+control panel on your local network.
 
-The idea: a little "home screen" launcher (think mini-iPhone) where each
-**mini app** is a self-contained program you can run — manual control,
-Xbox controller teleop, and whatever you build next.
+It's built like a little phone — a home screen of **mini apps**, each
+self-contained:
 
-It is built on top of the official **PAROL6 Python API** (the `waldoctl`
-interface). All robot communication goes through that API, wrapped in
-`core/` so the apps never talk to the hardware directly.
+| App | What it does |
+|-----|--------------|
+| 🕹 **Manual** | Jog joints or Cartesian X/Y/Z/RX/RY/RZ with a speed dial |
+| 🎮 **Remote** | Drive the arm with a Bluetooth/USB gamepad + programmable buttons |
+| 🦾 **3D View** | Live 3D model of the arm that mirrors the real joints (from the URDF) |
+| 📊 **Telemetry** | Live joint angles, TCP pose, and status |
+| 💾 **Poses** | Save and recall named joint positions |
+| 🎬 **Sequences** | Record and replay multi-waypoint motions |
+| ⚙️ **Settings** | Pick simulator/real hardware, COM port, and one-tap software update |
 
----
-
-## How it's organized
-
-```
-parol6-controller/
-├── README.md              You are here
-├── CLAUDE.md              Persistent instructions for Claude Code
-├── requirements.txt       Python dependencies
-├── run.py                 Entry point — launches the home screen
-│
-├── core/                  ALL robot communication lives here
-│   ├── __init__.py
-│   └── robot.py           Thin wrapper around the PAROL6 RobotClient
-│
-├── ui/                    The "home screen" / app launcher (the phone shell)
-│   ├── __init__.py
-│   └── launcher.py        Discovers apps in apps/ and runs them
-│
-├── apps/                  Each mini app is a folder with an app.py
-│   ├── manual_control/    App 1: normal jog control
-│   │   ├── __init__.py
-│   │   └── app.py
-│   └── xbox_control/      App 2: Bluetooth Xbox controller teleop
-│       ├── __init__.py
-│       └── app.py
-│
-└── scripts/
-    ├── setup_mac.sh       One-time setup on your Mac (dev machine)
-    └── setup_pi.sh        One-time setup on the Raspberry Pi (deploy target)
-```
-
-The contract every app follows: an app is a folder under `apps/` containing
-`app.py`, and `app.py` exposes two things — a `NAME` string and a `run(robot)`
-function. The launcher finds them automatically. To add an app, copy an
-existing folder and edit it. Nothing else needs to change.
+All robot communication goes through one layer (`core/robot.py`) — apps never
+touch the hardware directly.
 
 ---
 
-## The Mac → Pi workflow
+## What you need
 
-You develop on the Mac, then ship the same folder to the Pi. The PAROL6 API
-ships prebuilt wheels for **both** macOS (arm64/x86_64) and Linux aarch64
-(Raspberry Pi 5), so the *exact same code* runs on both — only the connection
-target changes.
-
-**On the Mac (development):**
-1. Run `scripts/setup_mac.sh` once.
-2. Develop against the **simulator** — no hardware needed. The simulator is
-   the default and is toggled in code via `simulator_on()`.
-3. Test each app in sim until it behaves.
-
-**Shipping to the Pi:**
-1. Copy this whole folder to the Pi (e.g. `scp -r parol6-controller pi@<pi-ip>:~/`
-   or push to git and `git clone` on the Pi).
-2. On the Pi, run `scripts/setup_pi.sh` once.
-3. Plug the PAROL6 control board into the Pi over USB.
-4. Start the controller pointed at the real serial port, then run the launcher.
-
-See `scripts/setup_pi.sh` for the exact commands, and CLAUDE.md for the
-"sim vs real" switch.
+- A **Raspberry Pi** (tested on a **Pi 5**; a Pi 4 works fine too)
+- A **PAROL6 arm** with its control board
+- A **USB cable** from the Pi to the control board
+- Power. If you're running the Pi off the arm's **24 V supply, you need a
+  24 V → 5 V buck converter rated for ≥ 5 A** — do **not** feed 24 V into the Pi.
 
 ---
 
-## Quick start (Mac, simulator)
+## Install on the Pi (one command)
 
 ```bash
+git clone https://github.com/Jakecuso/parol6-controller.git
 cd parol6-controller
-bash scripts/setup_mac.sh          # one time
-source .venv/bin/activate
-python run.py                      # opens the home screen in the terminal
+bash scripts/setup_pi.sh
 ```
+
+That script sets up everything:
+
+- Python venv + the PAROL6 API + dependencies
+- serial-port access (adds you to the `dialout` group)
+- **mDNS** so the Pi is reachable by name
+- a **systemd service** so the controller **auto-starts on boot and
+  auto-restarts if it ever crashes** — no more babysitting a terminal
+
+Reboot once (so the serial-group change takes effect), and you're done.
+
+## Use it
+
+From **any device on the same network** — phone, laptop, tablet — open:
+
+```
+http://raspberrypi.local:5050
+```
+
+(Replace `raspberrypi` with your Pi's hostname if you changed it.)
+
+The arm connects automatically when it's plugged in and powered. Open **Manual**
+and start jogging.
+
+### Plug-and-play behavior
+
+Cut power to the Pi, the arm, or both. Plug it all back in. ~20 seconds later the
+service is up and the arm is connected and live again — nothing to launch. If the
+arm's USB takes a few seconds to appear after power-on, the controller just keeps
+retrying until it connects.
 
 ---
 
-## Safety
+## Updating — push from your dev machine, pull on the Pi
 
-- Develop in the **simulator** first. The sim validates motion sequences but
-  cannot guarantee a move that works in sim will work on the real arm
-  (motor/current limits, payload, singularities).
-- Keep the physical **E-Stop** reachable whenever the real arm is powered.
-- The PAROL6 controller has **no authentication** — only run it on a trusted
-  local network, never exposed to the internet.
+You develop on your own machine, push to GitHub, and update the Pi. Two ways to
+pull the update onto the Pi:
+
+**1. The in-app button (easiest).** Open **Settings → Software → ⟳ Update**. It
+halts the arm, pulls the latest code, reinstalls any changed dependencies, and
+restarts itself. The page reconnects automatically when it's back.
+
+**2. Over SSH.**
+```bash
+cd ~/parol6-controller && ./scripts/update.sh
+```
+
+Both halt the arm before restarting, so an update never happens mid-motion.
+
+---
+
+## Developing on your own machine (simulator)
+
+No hardware needed — the PAROL6 API ships a simulator, and the same code runs on
+macOS and the Pi.
+
+```bash
+git clone https://github.com/Jakecuso/parol6-controller.git
+cd parol6-controller
+bash scripts/setup_mac.sh      # one time
+source .venv/bin/activate
+python run.py                  # opens http://localhost:5050 (simulator)
+```
+
+`run.py` defaults to the **simulator** for safety. The Pi's systemd service
+flips it to real hardware via `PAROL6_SIMULATE=0`.
+
+### Configuration knobs (env vars)
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PAROL6_SIMULATE` | `1` | `0` = real hardware, `1` = simulator |
+| `PAROL6_PORT` | `5050` | Web port |
+| `PAROL6_NO_BROWSER` | `0` | `1` = don't open a browser (headless) |
+
+CLI overrides: `python run.py --real`, `--sim`, `--port 8080`, `--no-browser`.
+
+### Add your own app
+
+1. `cp -r apps/manual_control apps/my_app`
+2. Edit `apps/my_app/app.py` — set `NAME`/`ICON`/`SLUG` and a `register()`.
+3. Add `"my_app"` to `APP_DIRS` in `server.py`. Done — it shows up on the home screen.
+
+---
+
+## ⚠️ Safety
+
+- **LAN only.** There is **no login** — anyone who can reach the page can drive
+  the arm. Never expose it to the internet or untrusted networks.
+- Keep the physical **E-Stop** reachable whenever the real arm is powered. The
+  app shows a flashing **E-STOP** banner on every screen when it's pressed.
+- The simulator validates motion sequences but can't guarantee a sim-valid move
+  is safe on the real arm (current limits, payload, singularities).
+- **Power-loss note:** if you kill the 24 V supply to shut everything off, the
+  Pi loses power ungracefully each time, which can corrupt the SD card over
+  time. For a always-on deployment, consider a clean shutdown or a read-only
+  root filesystem.
+
+---
+
+## Useful commands (on the Pi)
+
+```bash
+sudo systemctl status parol6     # is it running?
+sudo systemctl restart parol6    # restart it
+sudo systemctl stop parol6       # stop (e.g. to run manually)
+journalctl -u parol6 -f          # live logs
+```
+
+Built on the official **[PAROL6 Python API](https://github.com/PCrnjak/PAROL6-python-API)**.

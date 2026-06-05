@@ -4,7 +4,30 @@
 {% block nav_title %}Manual Control{% endblock %}
 
 {% block content %}
-<!-- Mode toggle + Home button -->
+<!-- Speed dial -->
+<div class="card" style="margin-bottom:12px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div class="label-sm" style="margin-bottom:0;">Speed</div>
+    <div style="display:flex; gap:4px;">
+      {% for p in [5,10,25,50,100] %}
+      <button class="btn btn-surface" style="padding:3px 8px;font-size:10px;border-radius:6px;"
+              onclick="setSpeed({{ p }})">{{ p }}%</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <div style="flex:1;">
+      <input type="range" class="speed-dial" id="speed-slider"
+             min="1" max="100" value="25" oninput="onSpeedInput(this.value)">
+    </div>
+    <div style="min-width:52px; text-align:right;">
+      <span class="speed-val" id="speed-display">25</span>
+      <div class="speed-label">%</div>
+    </div>
+  </div>
+</div>
+
+<!-- Mode toggle + Home -->
 <div style="display:flex; gap:10px; margin-bottom:14px;">
   <div class="toggle-row" style="flex:1;">
     <button class="toggle-btn active" id="btn-joint" onclick="setMode('joint')">Joint</button>
@@ -13,62 +36,157 @@
   <button class="btn btn-home" onclick="sendHome()">⌂ Home</button>
 </div>
 
-<!-- Selected joint info -->
-<div class="card" style="margin-bottom:12px;">
-  <div class="label-sm">Selected</div>
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <div>
-      <div id="sel-name" style="font-size:16px; font-weight:700;">J1 — Base</div>
-      <div id="sel-range" style="font-size:11px; color:var(--text-dim); margin-top:2px;">range: −123° to 123°</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="display:flex; gap:8px;">
-        <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
-             onmousedown="startJog(selectedJoint,-1)" onmouseup="stopJog()"
-             ontouchstart="startJog(selectedJoint,-1)" ontouchend="stopJog()">←</div>
-        <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
-             onmousedown="startJog(selectedJoint,1)"  onmouseup="stopJog()"
-             ontouchstart="startJog(selectedJoint,1)"  ontouchend="stopJog()">→</div>
+<!-- ═══════════════ JOINT PANEL ═══════════════ -->
+<div id="joint-panel">
+  <!-- Selected joint info -->
+  <div class="card" style="margin-bottom:12px;">
+    <div class="label-sm">Selected</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div id="sel-name" style="font-size:16px; font-weight:700;">J1 — Base</div>
+        <div id="sel-range" style="font-size:11px; color:var(--text-dim); margin-top:2px;">range: −123° to 123°</div>
       </div>
-      <div style="color:var(--text-dim);font-size:9px;margin-top:4px;">hold to jog</div>
+      <div style="text-align:center;">
+        <div style="display:flex; gap:8px;">
+          <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
+               onmousedown="startJogJoint(selectedJoint,-1)" onmouseup="stopJog()"
+               ontouchstart="startJogJoint(selectedJoint,-1)" ontouchend="stopJog()">←</div>
+          <div class="jog-btn" style="width:40px;height:40px;font-size:20px;"
+               onmousedown="startJogJoint(selectedJoint,1)"  onmouseup="stopJog()"
+               ontouchstart="startJogJoint(selectedJoint,1)"  ontouchend="stopJog()">→</div>
+        </div>
+        <div style="color:var(--text-dim);font-size:9px;margin-top:4px;">hold to jog</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Joint selector buttons -->
+  <div style="display:flex; gap:6px; justify-content:center; margin-bottom:14px;">
+    {% for i in range(1,7) %}
+    <button class="jog-btn" id="sel-{{ i }}" onclick="selectJoint({{ i-1 }})"
+            style="width:32px;height:32px;font-size:12px;font-weight:700;">{{ i }}</button>
+    {% endfor %}
+  </div>
+
+  <!-- Joint bars -->
+  <div class="card" style="margin-bottom:12px;">
+    <div class="label-sm">All Joints</div>
+    {% for i in range(6) %}
+    <div class="joint-row" id="row-{{ i }}">
+      <div class="joint-label">J{{ i+1 }}</div>
+      <button class="jog-btn" onmousedown="startJogJoint({{ i }},-1)" onmouseup="stopJog()"
+              ontouchstart="startJogJoint({{ i }},-1)" ontouchend="stopJog()">−</button>
+      <div class="bar-wrap">
+        <div class="bar-fill" id="bar-{{ i }}" style="width:50%;"></div>
+        <div class="bar-cursor" id="cur-{{ i }}" style="left:50%;"></div>
+      </div>
+      <button class="jog-btn" onmousedown="startJogJoint({{ i }},1)" onmouseup="stopJog()"
+              ontouchstart="startJogJoint({{ i }},1)" ontouchend="stopJog()">+</button>
+      <div class="angle-val" id="ang-{{ i }}">—</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ═══════════════ CARTESIAN PANEL ═══════════════ -->
+<div id="cart-panel" style="display:none;">
+
+  <!-- Position: XY d-pad + Z column -->
+  <div class="card" style="margin-bottom:10px;">
+    <div class="label-sm" style="margin-bottom:10px;">Position (mm)</div>
+    <div style="display:flex; gap:10px; align-items:stretch;">
+
+      <!-- XY 8-direction d-pad -->
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,52px); gap:4px; flex:3;">
+        <button class="cart-btn diag" onpointerdown="startCartJogBtn('xnyp')" onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:18px;">↖</span></button>
+        <button class="cart-btn"      onpointerdown="startCartJogBtn('yp')"   onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:20px;">↑</span><span style="font-size:9px;color:var(--text-dim);margin-top:1px;">+Y fwd</span></button>
+        <button class="cart-btn diag" onpointerdown="startCartJogBtn('xpyp')" onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:18px;">↗</span></button>
+
+        <button class="cart-btn"      onpointerdown="startCartJogBtn('xn')"   onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:20px;">←</span><span style="font-size:9px;color:var(--text-dim);margin-top:1px;">−X</span></button>
+        <div class="cart-center"><span style="font-size:11px;">XY</span></div>
+        <button class="cart-btn"      onpointerdown="startCartJogBtn('xp')"   onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:20px;">→</span><span style="font-size:9px;color:var(--text-dim);margin-top:1px;">+X</span></button>
+
+        <button class="cart-btn diag" onpointerdown="startCartJogBtn('xnyn')" onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:18px;">↙</span></button>
+        <button class="cart-btn"      onpointerdown="startCartJogBtn('yn')"   onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:20px;">↓</span><span style="font-size:9px;color:var(--text-dim);margin-top:1px;">−Y bk</span></button>
+        <button class="cart-btn diag" onpointerdown="startCartJogBtn('xpyn')" onpointerup="stopJog()" onpointerleave="stopJog()"><span style="font-size:18px;">↘</span></button>
+      </div>
+
+      <!-- Z column -->
+      <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+        <button class="cart-btn" style="flex:1;" onpointerdown="startCartJogBtn('zp')" onpointerup="stopJog()" onpointerleave="stopJog()">
+          <span style="font-size:20px;">↑</span>
+          <span style="font-size:10px;color:var(--text-dim);">+Z up</span>
+        </button>
+        <div class="cart-center" style="padding:4px 0; flex-shrink:0;"><span style="font-size:10px;">Z</span></div>
+        <button class="cart-btn" style="flex:1;" onpointerdown="startCartJogBtn('zn')" onpointerup="stopJog()" onpointerleave="stopJog()">
+          <span style="font-size:20px;">↓</span>
+          <span style="font-size:10px;color:var(--text-dim);">−Z dn</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Orientation: RX / RY / RZ -->
+  <div class="card" style="margin-bottom:10px;">
+    <div class="label-sm" style="margin-bottom:8px;">Orientation (°)</div>
+
+    <div class="rot-row">
+      <div class="rot-label">
+        <div class="rot-name" style="color:#ef5350;">RX</div>
+        <div class="rot-desc">Pitch</div>
+      </div>
+      <div class="rot-btns">
+        <button class="cart-btn" onpointerdown="startCartJogBtn('rxn')" onpointerup="stopJog()" onpointerleave="stopJog()">↺ −</button>
+        <button class="cart-btn" onpointerdown="startCartJogBtn('rxp')" onpointerup="stopJog()" onpointerleave="stopJog()">+ ↻</button>
+      </div>
+      <div id="rxyz-3" style="width:46px;text-align:right;font-size:11px;font-weight:600;color:var(--warn);">—</div>
+    </div>
+
+    <div class="rot-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:9px;">
+      <div class="rot-label">
+        <div class="rot-name" style="color:#66bb6a;">RY</div>
+        <div class="rot-desc">Roll</div>
+      </div>
+      <div class="rot-btns">
+        <button class="cart-btn" onpointerdown="startCartJogBtn('ryn')" onpointerup="stopJog()" onpointerleave="stopJog()">↺ −</button>
+        <button class="cart-btn" onpointerdown="startCartJogBtn('ryp')" onpointerup="stopJog()" onpointerleave="stopJog()">+ ↻</button>
+      </div>
+      <div id="rxyz-4" style="width:46px;text-align:right;font-size:11px;font-weight:600;color:var(--warn);">—</div>
+    </div>
+
+    <div class="rot-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:9px;">
+      <div class="rot-label">
+        <div class="rot-name" style="color:#42a5f5;">RZ</div>
+        <div class="rot-desc">Yaw</div>
+      </div>
+      <div class="rot-btns">
+        <button class="cart-btn" onpointerdown="startCartJogBtn('rzn')" onpointerup="stopJog()" onpointerleave="stopJog()">↺ −</button>
+        <button class="cart-btn" onpointerdown="startCartJogBtn('rzp')" onpointerup="stopJog()" onpointerleave="stopJog()">+ ↻</button>
+      </div>
+      <div id="rxyz-5" style="width:46px;text-align:right;font-size:11px;font-weight:600;color:var(--warn);">—</div>
+    </div>
+
+  </div>
+
+  <!-- XYZ live readout in cartesian mode -->
+  <div class="card" style="margin-bottom:10px;">
+    <div class="label-sm">End Effector</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:6px;">
+      {% for ax, idx in [('X',0),('Y',1),('Z',2)] %}
+      <div>
+        <div id="cxyz-{{ idx }}" style="font-size:13px;font-weight:600;color:var(--warn);">—</div>
+        <div style="font-size:9px;color:var(--text-dim);">{{ ax }} mm</div>
+      </div>
+      {% endfor %}
     </div>
   </div>
 </div>
 
-<!-- Joint selector buttons -->
-<div style="display:flex; gap:6px; justify-content:center; margin-bottom:14px;">
-  {% for i in range(1,7) %}
-  <button class="jog-btn" id="sel-{{ i }}" onclick="selectJoint({{ i-1 }})"
-          style="width:32px;height:32px;font-size:12px;font-weight:700;">
-    {{ i }}
-  </button>
-  {% endfor %}
-</div>
-
-<!-- Joint list with live bars -->
-<div class="card" style="margin-bottom:12px;">
-  <div class="label-sm">All Joints</div>
-  {% set lims = [(-123.046875,123.046875),(-145.0088,-3.375),(107.866,287.8675),(-105.46975,105.46975),(-90.0,90.0),(0.0,360.0)] %}
-  {% for i in range(6) %}
-  <div class="joint-row" id="row-{{ i }}">
-    <div class="joint-label">J{{ i+1 }}</div>
-    <button class="jog-btn" onmousedown="startJog({{ i }},-1)" onmouseup="stopJog()"
-            ontouchstart="startJog({{ i }},-1)" ontouchend="stopJog()">−</button>
-    <div class="bar-wrap">
-      <div class="bar-fill" id="bar-{{ i }}" style="width:50%;"></div>
-      <div class="bar-cursor" id="cur-{{ i }}" style="left:50%;"></div>
-    </div>
-    <button class="jog-btn" onmousedown="startJog({{ i }},1)" onmouseup="stopJog()"
-            ontouchstart="startJog({{ i }},1)" ontouchend="stopJog()">+</button>
-    <div class="angle-val" id="ang-{{ i }}">—</div>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- End effector readout -->
-<div class="card" style="margin-bottom:12px;">
+<!-- End effector readout (joint mode) -->
+<div id="joint-ee" class="card" style="margin-bottom:12px;">
   <div class="label-sm">End Effector</div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-top:6px;">
     {% for ax in ['X','Y','Z','RX','RY','RZ'] %}
     <div>
       <div id="xyz-{{ loop.index0 }}" style="font-size:13px;font-weight:600;color:var(--warn);">—</div>
@@ -78,7 +196,7 @@
   </div>
 </div>
 
-<!-- Keyboard legend -->
+<!-- Keyboard shortcuts -->
 <div class="card">
   <div class="label-sm">Keyboard Shortcuts</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">
@@ -94,25 +212,56 @@
 
 {% block scripts %}
 <script>
-const LIMITS = [[-123.046875,123.046875],[-145.0088,-3.375],[107.866,287.8675],[-105.46975,105.46975],[-90,90],[0,360]];
-const NAMES  = ["Base","Shoulder","Elbow","Wrist 1","Wrist 2","Tool"];
-const CART_AXES = ["X","Y","Z","RX","RY","RZ"];
+const LIMITS   = [[-123.046875,123.046875],[-145.0088,-3.375],[107.866,287.8675],[-105.46975,105.46975],[-90,90],[0,360]];
+const NAMES    = ["Base","Shoulder","Elbow","Wrist 1","Wrist 2","Tool"];
 let selectedJoint = 0;
-let mode = "joint";
+let mode    = "joint";
 let jogging = false;
+let jogSpeed = 25;
 
+// ── Button → axes map ────────────────────────────────────────────────────────
+const CART_MAP = {
+  xp:   {axes:{X:1}},    xn:   {axes:{X:-1}},
+  yp:   {axes:{Y:1}},    yn:   {axes:{Y:-1}},
+  zp:   {axes:{Z:1}},    zn:   {axes:{Z:-1}},
+  xpyp: {axes:{X:1,Y:1}}, xnyp: {axes:{X:-1,Y:1}},
+  xpyn: {axes:{X:1,Y:-1}}, xnyn: {axes:{X:-1,Y:-1}},
+  rxp:  {axes:{RX:1}},   rxn:  {axes:{RX:-1}},
+  ryp:  {axes:{RY:1}},   ryn:  {axes:{RY:-1}},
+  rzp:  {axes:{RZ:1}},   rzn:  {axes:{RZ:-1}},
+};
+
+// ── Speed ────────────────────────────────────────────────────────────────────
+function onSpeedInput(v) { jogSpeed = parseInt(v); document.getElementById("speed-display").textContent = v; }
+function setSpeed(v) {
+  jogSpeed = v;
+  document.getElementById("speed-slider").value = v;
+  document.getElementById("speed-display").textContent = v;
+}
+
+// ── Mode ─────────────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.getElementById("btn-joint").className  = "toggle-btn" + (m === "joint" ? " active" : "");
+  document.getElementById("btn-cart").className   = "toggle-btn" + (m === "cartesian" ? " active" : "");
+  document.getElementById("joint-panel").style.display = m === "joint" ? "" : "none";
+  document.getElementById("joint-ee").style.display    = m === "joint" ? "" : "none";
+  document.getElementById("cart-panel").style.display  = m === "cartesian" ? "" : "none";
+}
+
+// ── Joint jog ────────────────────────────────────────────────────────────────
 function selectJoint(idx) {
   selectedJoint = idx;
   for (let i = 0; i < 6; i++) {
     const row = document.getElementById(`row-${i}`);
     const sel = document.getElementById(`sel-${i+1}`);
-    const isSelected = i === idx;
-    row.style.background = isSelected ? "rgba(30,144,255,0.08)" : "";
-    row.style.borderRadius = isSelected ? "8px" : "";
+    const on  = i === idx;
+    row.style.background   = on ? "rgba(30,144,255,0.08)" : "";
+    row.style.borderRadius = on ? "8px" : "";
     if (sel) {
-      sel.style.borderColor = isSelected ? "var(--accent)" : "";
-      sel.style.color       = isSelected ? "var(--accent)" : "";
-      sel.style.background  = isSelected ? "rgba(30,144,255,0.1)" : "";
+      sel.style.borderColor = on ? "var(--accent)" : "";
+      sel.style.color       = on ? "var(--accent)" : "";
+      sel.style.background  = on ? "rgba(30,144,255,0.1)" : "";
     }
   }
   const [mn, mx] = LIMITS[idx];
@@ -120,58 +269,84 @@ function selectJoint(idx) {
   document.getElementById("sel-range").textContent = `range: ${mn}° to ${mx}°`;
 }
 
-function setMode(m) {
-  mode = m;
-  document.getElementById("btn-joint").className = "toggle-btn" + (m === "joint" ? " active" : "");
-  document.getElementById("btn-cart").className  = "toggle-btn" + (m === "cartesian" ? " active" : "");
-}
-
-function startJog(joint, dir) {
+function startJogJoint(joint, dir) {
   if (jogging) stopJog();
   jogging = true;
-  if (mode === "joint") {
-    socket.emit("manual:jog_start", { type: "joint", joint, direction: dir });
-  } else {
-    socket.emit("manual:jog_start", { type: "cartesian", axis: CART_AXES[joint], direction: dir });
-  }
+  socket.emit("manual:jog_start", { type: "joint", joint, direction: dir, speed: jogSpeed });
 }
 
+// ── Cartesian jog ────────────────────────────────────────────────────────────
+function startCartJogBtn(key) {
+  const def = CART_MAP[key];
+  if (!def) return;
+  if (jogging) stopJog();
+  jogging = true;
+  socket.emit("manual:jog_start", {
+    type: "cartesian", axes: def.axes, speed: jogSpeed
+  });
+}
+
+// ── Stop ──────────────────────────────────────────────────────────────────────
 function stopJog() {
   if (!jogging) return;
   jogging = false;
   socket.emit("manual:jog_stop");
 }
 
+// ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener("keydown", (e) => {
   if (e.repeat) return;
-  if (e.key === "Escape")                   { window.location.href = "/"; return; }
-  if (e.key === "h" || e.key === "H")       { sendHome(); return; }
-  if (e.key === "m" || e.key === "M")       { setMode(mode === "joint" ? "cartesian" : "joint"); return; }
-  if (e.key === " ")                        { e.preventDefault(); sendStop(); return; }
+  if (e.key === "Escape")               { window.location.href = "/"; return; }
+  if (e.key === "h" || e.key === "H")   { sendHome(); return; }
+  if (e.key === "m" || e.key === "M")   { setMode(mode === "joint" ? "cartesian" : "joint"); return; }
+  if (e.key === " ")                    { e.preventDefault(); sendStop(); return; }
   const n = parseInt(e.key);
-  if (n >= 1 && n <= 6)                    { selectJoint(n - 1); return; }
-  if (e.key === "ArrowLeft")               { e.preventDefault(); startJog(selectedJoint, -1); }
-  if (e.key === "ArrowRight")              { e.preventDefault(); startJog(selectedJoint,  1); }
+  if (n >= 1 && n <= 6)                { selectJoint(n - 1); return; }
+  if (e.key === "ArrowLeft")           { e.preventDefault(); startJogJoint(selectedJoint, -1); }
+  if (e.key === "ArrowRight")          { e.preventDefault(); startJogJoint(selectedJoint,  1); }
 });
 document.addEventListener("keyup", (e) => {
   if (e.key === "ArrowLeft" || e.key === "ArrowRight") stopJog();
 });
 
+// ── Pose update ───────────────────────────────────────────────────────────────
 document.addEventListener("pose_update", (e) => {
   const { joints, xyz } = e.detail;
+
+  // joint bars
   joints.forEach((v, i) => {
     const [mn, mx] = LIMITS[i];
     const pct = Math.max(0, Math.min(100, ((v - mn) / (mx - mn)) * 100));
-    document.getElementById(`bar-${i}`).style.width = pct + "%";
-    document.getElementById(`cur-${i}`).style.left  = pct + "%";
-    document.getElementById(`ang-${i}`).textContent = v.toFixed(1) + "°";
+    const bar = document.getElementById(`bar-${i}`);
+    const cur = document.getElementById(`cur-${i}`);
+    const ang = document.getElementById(`ang-${i}`);
+    if (bar) bar.style.width = pct + "%";
+    if (cur) cur.style.left  = pct + "%";
+    if (ang) ang.textContent = v.toFixed(1) + "°";
   });
+
+  // end-effector (joint mode)
   xyz.forEach((v, i) => {
-    document.getElementById(`xyz-${i}`).textContent = v.toFixed(1) + (i < 3 ? "mm" : "°");
+    const el = document.getElementById(`xyz-${i}`);
+    if (el) el.textContent = v.toFixed(1) + (i < 3 ? "mm" : "°");
   });
-  const cur = joints[selectedJoint] || 0;
-  const [mn, mx] = LIMITS[selectedJoint];
-  document.getElementById("sel-range").textContent = `${cur.toFixed(1)}° · range: ${mn}° to ${mx}°`;
+
+  // XYZ readout (cartesian mode)
+  [0,1,2].forEach(i => {
+    const el = document.getElementById(`cxyz-${i}`);
+    if (el) el.textContent = xyz[i] != null ? xyz[i].toFixed(1) + "mm" : "—";
+  });
+
+  // RX/RY/RZ live values in rotation rows
+  [3,4,5].forEach(i => {
+    const el = document.getElementById(`rxyz-${i}`);
+    if (el) el.textContent = xyz[i] != null ? xyz[i].toFixed(1) + "°" : "—";
+  });
+
+  const cur2 = joints[selectedJoint] || 0;
+  const [mn2, mx2] = LIMITS[selectedJoint];
+  const sr = document.getElementById("sel-range");
+  if (sr) sr.textContent = `${cur2.toFixed(1)}° · range: ${mn2}° to ${mx2}°`;
 });
 
 selectJoint(0);

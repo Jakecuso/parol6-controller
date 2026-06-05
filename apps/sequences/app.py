@@ -101,7 +101,6 @@ def register(app, robot, socketio):
                 except Exception as e:
                     print(f"[sequences] playback error: {e}")
                     break
-                time.sleep(0.05)
 
         socketio.start_background_task(_loop)
         return jsonify({"ok": True})

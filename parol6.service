@@ -1,0 +1,40 @@
+# parol6.service — systemd unit for the PAROL6 Web Controller.
+#
+# This is a TEMPLATE for reference. You do NOT install this file by hand —
+# `scripts/setup_pi.sh` generates a copy with the right User= and paths filled
+# in and installs it to /etc/systemd/system/parol6.service for you.
+#
+# What it gives you:
+#   • starts automatically on boot
+#   • restarts automatically if it crashes or exits (the in-app Update button
+#     relies on this: it just exits and systemd brings the new code back up)
+#   • runs headless, no terminal needed
+#
+# Manual control once installed:
+#   sudo systemctl status parol6
+#   sudo systemctl restart parol6
+#   journalctl -u parol6 -f          # live logs
+
+[Unit]
+Description=PAROL6 Web Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APPDIR__
+ExecStart=__APPDIR__/.venv/bin/python run.py
+Restart=always
+RestartSec=5
+
+# Deploy-time configuration (see run.py):
+#   PAROL6_SIMULATE=0  → real hardware (straight to live on boot)
+#   PAROL6_PORT=5050   → web port
+#   PAROL6_NO_BROWSER=1 → headless, don't try to open a browser
+Environment=PAROL6_SIMULATE=0
+Environment=PAROL6_PORT=5050
+Environment=PAROL6_NO_BROWSER=1
+
+[Install]
+WantedBy=multi-user.target

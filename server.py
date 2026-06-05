@@ -11,6 +11,8 @@ APP_DIRS = [
     "telemetry",
     "sequences",
     "poses",
+    "visualizer",
+    "settings",
 ]
 
 def create_app(simulate: bool = True):
@@ -21,8 +23,23 @@ def create_app(simulate: bool = True):
 
     from core.robot import Robot
     robot = Robot(simulate=simulate)
-    robot.connect()
     app.robot = robot
+
+    if simulate:
+        # Simulator connects instantly — no hardware to wait on.
+        robot.connect()
+    else:
+        # Real hardware: bring the web UI up immediately and connect to the arm
+        # in the background, retrying until the USB board is ready. This is what
+        # makes power-on plug-and-play — the arm may enumerate seconds after the
+        # Pi finishes booting. connect_async() also resume()s, so the arm comes
+        # up live ("straight to hardware").
+        def _announce(_r):
+            socketio.emit("settings:status", {
+                "ok": True, "msg": "Connected (real hardware)",
+                "enabled": _r.is_enabled(),
+            })
+        robot.connect_async(on_connect=_announce)
 
     # Discover and register Blueprint apps
     discovered = []
@@ -44,6 +61,7 @@ def create_app(simulate: bool = True):
     @socketio.on("stop")
     def on_stop():
         robot.stop()
+        socketio.emit("settings:resume_ack", {"ok": False, "msg": "Halted — tap Enable to resume"})
 
     @socketio.on("home")
     def on_home():

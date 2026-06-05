@@ -8,10 +8,11 @@
   <div class="label-sm">Save Current Pose</div>
   <div style="display:flex;gap:8px;">
     <input id="pose-name" type="text" placeholder="Pose name…"
-      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;">
-    <button class="btn btn-primary" onclick="savePose()">Save</button>
+      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;"
+      onkeydown="if(event.key==='Enter') savePose()">
+    <button class="btn btn-primary" id="btn-save" onclick="savePose()">Save</button>
   </div>
-  <div id="save-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;"></div>
+  <div id="save-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;min-height:16px;"></div>
 </div>
 
 <div class="card">
@@ -24,17 +25,17 @@
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:600;">{{ p.name }}</div>
         <div style="font-size:10px;color:var(--text-dim);">
-          J: {% for j in p.joints %}{{ "%.1f"|format(j) }}{% if not loop.last %}, {% endif %}{% endfor %}
+          {% for j in p.joints %}{{ "%.1f"|format(j) }}°{% if not loop.last %}, {% endif %}{% endfor %}
         </div>
       </div>
       <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;"
-              onclick="goToPose('{{ p.name }}')">Go</button>
+              onclick="goToPose('{{ p.name }}', this)">Go</button>
       <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;"
               onclick="deletePose('{{ p.name }}', this)">🗑</button>
     </div>
     {% endfor %}
     {% else %}
-    <div style="color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;" id="empty-msg">
+    <div id="empty-msg" style="color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;">
       No poses saved yet.
     </div>
     {% endif %}
@@ -44,59 +45,97 @@
 
 {% block scripts %}
 <script>
+function setSaveStatus(msg, color) {
+  const el = document.getElementById("save-status");
+  el.textContent = msg;
+  el.style.color = color || "var(--text-dim)";
+}
+
 async function savePose() {
   const name = document.getElementById("pose-name").value.trim();
-  if (!name) { document.getElementById("save-status").textContent = "Enter a name first."; return; }
+  if (!name) { setSaveStatus("Enter a name first.", "var(--warn)"); return; }
+
+  // Duplicate check
+  if (document.querySelector(`.pose-item[data-name="${CSS.escape(name)}"]`)) {
+    setSaveStatus(`"${name}" already exists — delete it first.`, "var(--warn)");
+    return;
+  }
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
   const r = await fetch("/api/poses/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+  btn.disabled = false;
   const d = await r.json();
   if (d.ok) {
-    document.getElementById("save-status").textContent = `"${name}" saved.`;
+    setSaveStatus(`✓ "${name}" saved.`, "var(--success)");
     document.getElementById("pose-name").value = "";
     appendPoseRow(name, d.joints);
+    setTimeout(() => setSaveStatus(""), 3000);
   } else {
-    document.getElementById("save-status").textContent = "Error: " + d.error;
+    setSaveStatus("Error: " + d.error, "var(--danger)");
   }
 }
 
 function appendPoseRow(name, joints) {
-  const list  = document.getElementById("pose-list");
   const empty = document.getElementById("empty-msg");
   if (empty) empty.remove();
   const div = document.createElement("div");
-  div.className  = "pose-item";
+  div.className = "pose-item";
   div.dataset.name = name;
   div.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);";
+  const jStr = joints.map(v => v.toFixed(1) + "°").join(", ");
   div.innerHTML = `
     <div style="flex:1;">
       <div style="font-size:13px;font-weight:600;">${name}</div>
-      <div style="font-size:10px;color:var(--text-dim);">J: ${joints.map(v => v.toFixed(1)).join(", ")}</div>
+      <div style="font-size:10px;color:var(--text-dim);">${jStr}</div>
     </div>
-    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;" onclick="goToPose('${name}')">Go</button>
-    <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;" onclick="deletePose('${name}', this)">🗑</button>`;
-  list.appendChild(div);
+    <button class="btn btn-primary" style="padding:5px 12px;font-size:11px;"
+            onclick="goToPose('${name}', this)">Go</button>
+    <button class="btn btn-surface" style="padding:5px 10px;font-size:11px;"
+            onclick="deletePose('${name}', this)">🗑</button>`;
+  document.getElementById("pose-list").appendChild(div);
 }
 
-async function goToPose(name) {
+async function goToPose(name, btn) {
+  const orig = btn.textContent;
+  btn.textContent = "Moving…";
+  btn.disabled = true;
   const r = await fetch("/api/poses/goto", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
   const d = await r.json();
-  if (!d.ok) alert("Error: " + d.error);
+  btn.disabled = false;
+  if (d.ok) {
+    btn.textContent = "✓ Done";
+    btn.className = "btn btn-home";
+    setTimeout(() => { btn.textContent = orig; btn.className = "btn btn-primary"; }, 2500);
+  } else {
+    btn.textContent = orig;
+    setSaveStatus("Error: " + d.error, "var(--danger)");
+  }
 }
 
 async function deletePose(name, btn) {
+  if (!confirm(`Delete "${name}"?`)) return;
   await fetch("/api/poses/delete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
   btn.closest(".pose-item").remove();
+  if (!document.querySelector(".pose-item")) {
+    const el = document.createElement("div");
+    el.id = "empty-msg";
+    el.style.cssText = "color:var(--text-dim);font-size:13px;padding:12px 0;text-align:center;";
+    el.textContent = "No poses saved yet.";
+    document.getElementById("pose-list").appendChild(el);
+  }
 }
 
 document.addEventListener("keydown", (e) => {

@@ -12,7 +12,17 @@
   <div class="nav-bar">
     {% block nav_left %}<span></span>{% endblock %}
     <span class="nav-title">{% block nav_title %}PAROL6{% endblock %}</span>
-    <button class="btn-stop" onclick="sendStop()">&#9632; STOP</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="estop-pill" style="
+          display:none; align-items:center; gap:5px;
+          background:var(--danger); color:#fff;
+          border-radius:8px; padding:5px 10px;
+          font-size:11px; font-weight:800; letter-spacing:0.5px;
+          animation: estop-pulse 0.7s ease-in-out infinite alternate;">
+        ⚠ E-STOP
+      </div>
+      <button class="btn-stop" onclick="sendStop()">&#9632; STOP</button>
+    </div>
   </div>
   {% endblock %}
 
