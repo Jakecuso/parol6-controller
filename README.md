@@ -49,6 +49,7 @@ The short version, once you've flashed **Raspberry Pi OS Lite (64-bit, Trixie)**
 and SSH'd in:
 
 ```bash
+sudo apt update && sudo apt install -y git    # Lite has no git preinstalled
 git clone https://github.com/Jakecuso/parol6-controller.git
 cd parol6-controller
 bash scripts/setup_pi.sh

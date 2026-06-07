@@ -67,9 +67,12 @@ the Pi itself.
 
 ---
 
-## Step 3 — Install (the three commands)
+## Step 3 — Install
+
+The Lite image doesn't ship `git`, so install it first, then clone and run:
 
 ```bash
+sudo apt update && sudo apt install -y git
 git clone https://github.com/Jakecuso/parol6-controller.git
 cd parol6-controller
 bash scripts/setup_pi.sh
