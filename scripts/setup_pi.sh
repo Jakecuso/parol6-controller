@@ -44,6 +44,39 @@ echo "   port:  $PORT"
 echo "   clean: $CLEAN"
 echo "──────────────────────────────────────────────"
 
+# ── preflight: platform compatibility ────────────────────────────────────────
+# The PAROL6 API depends on `pinokin` (pinocchio-based kinematics), which only
+# ships prebuilt wheels for 64-bit ARM with glibc >= 2.39 and Python 3.11–3.14.
+# Raspberry Pi OS *Bookworm* has glibc 2.36 — too old. You need *Trixie* (Debian
+# 13, glibc 2.41, Python 3.13). Catch this now with a clear message instead of a
+# cryptic "is not a supported wheel on this platform" failure mid-install.
+echo "[preflight] Checking platform compatibility…"
+ver_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
+
+ARCH="$(uname -m)"
+if [ "$ARCH" != "aarch64" ]; then
+  echo "  ✗ Architecture is '$ARCH', but only 64-bit ARM (aarch64) is supported."
+  echo "    Flash the 64-bit Raspberry Pi OS (not the 32-bit image)."
+  exit 1
+fi
+
+GLIBC="$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+NEED_GLIBC="2.39"
+if [ -n "$GLIBC" ] && ! ver_ge "$GLIBC" "$NEED_GLIBC"; then
+  echo "  ✗ System glibc is $GLIBC, but pinokin's wheels need >= $NEED_GLIBC."
+  echo "    Raspberry Pi OS Bookworm (glibc 2.36) is too old for this."
+  echo "    FIX: flash the latest Raspberry Pi OS — Trixie / Debian 13, 64-bit —"
+  echo "         which has glibc 2.41 and Python 3.13, then re-run this script."
+  exit 1
+fi
+
+PYV="$(python3 -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo '?')"
+case "$PYV" in
+  3.11|3.12|3.13|3.14) : ;;
+  *) echo "  ⚠ Python $PYV found; pinokin ships wheels for 3.11–3.14 only — install may fail." ;;
+esac
+echo "  ✓ aarch64 · glibc ${GLIBC:-unknown} · Python $PYV"
+
 # ── 1. system packages ───────────────────────────────────────────────────────
 echo "[1/7] Installing system packages (git, python venv, avahi)…"
 sudo apt-get update -qq

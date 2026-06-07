@@ -25,7 +25,13 @@ touch the hardware directly.
 
 ## What you need
 
-- A **Raspberry Pi** (tested on a **Pi 5**; a Pi 4 works fine too)
+- A **Raspberry Pi** (tested on a **Pi 5**; a Pi 4 works too) — **64-bit**.
+- **Raspberry Pi OS Trixie (Debian 13) or newer.** This matters: the PAROL6 API
+  depends on `pinokin`, whose prebuilt wheels require **glibc ≥ 2.39**. The older
+  **Bookworm** image (glibc 2.36) **will not work** — you'll get
+  `… is not a supported wheel on this platform`. Trixie ships glibc 2.41 +
+  Python 3.13, which match. (`setup_pi.sh` checks this for you and stops with a
+  clear message if your OS is too old.)
 - A **PAROL6 arm** with its control board
 - A **USB cable** from the Pi to the control board
 - Power. If you're running the Pi off the arm's **24 V supply, you need a
@@ -141,6 +147,16 @@ CLI overrides: `python run.py --real`, `--sim`, `--port 8080`, `--no-browser`.
 ---
 
 ## Troubleshooting
+
+**`ERROR: pinokin-…-manylinux_2_39_…whl is not a supported wheel on this platform`.**
+Your Pi OS is too old. `pinokin`'s wheels need **glibc ≥ 2.39**; Raspberry Pi OS
+Bookworm has 2.36. Flash the latest **Raspberry Pi OS (Trixie, 64-bit)** — glibc
+2.41 + Python 3.13 — and re-run `setup_pi.sh`. Check your versions with:
+```bash
+ldd --version | head -1     # glibc — need >= 2.39
+python3 --version           # need 3.11–3.14
+uname -m                    # need aarch64 (64-bit)
+```
 
 **The Pi froze / locked up during install, or `parol6` won't import.**
 Almost always **out of memory** — the PAROL6 stack (pinokin/pinocchio,
