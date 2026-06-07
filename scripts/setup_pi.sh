@@ -60,7 +60,9 @@ if [ "$ARCH" != "aarch64" ]; then
   exit 1
 fi
 
-GLIBC="$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+# NOTE: `... | head -1` can SIGPIPE the upstream command; under `set -o pipefail`
+# that would silently kill the script. The trailing `|| true` swallows it.
+GLIBC="$(ldd --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n1)" || true
 NEED_GLIBC="2.39"
 if [ -n "$GLIBC" ] && ! ver_ge "$GLIBC" "$NEED_GLIBC"; then
   echo "  ✗ System glibc is $GLIBC, but pinokin's wheels need >= $NEED_GLIBC."
