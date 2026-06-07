@@ -140,6 +140,24 @@ CLI overrides: `python run.py --real`, `--sim`, `--port 8080`, `--no-browser`.
 
 ---
 
+## Troubleshooting
+
+**The Pi froze / locked up during install, or `parol6` won't import.**
+Almost always **out of memory** — the PAROL6 stack (pinokin/pinocchio,
+robotics-toolbox) is heavy, and a 2-4GB Pi needs swap, especially if you're also
+running something like an SSH AI session at the same time. `setup_pi.sh` now sets
+up 2GB of swap automatically, but if a previous run got interrupted it may have
+left a half-built environment. Rebuild it cleanly:
+
+```bash
+cd ~/parol6-controller
+git pull
+bash scripts/setup_pi.sh --clean     # wipes .venv and reinstalls from scratch
+```
+
+Check memory/swap any time with `free -h`. If you froze mid-install before swap
+existed, just rerun the line above — the swap step runs first now.
+
 ## Useful commands (on the Pi)
 
 ```bash
