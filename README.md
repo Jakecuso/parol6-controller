@@ -39,36 +39,50 @@ touch the hardware directly.
 
 ---
 
-## Install on the Pi (one command)
+## Install on the Pi
+
+**New to this? Follow the full walkthrough → [docs/PI_SETUP.md](docs/PI_SETUP.md)**
+(flash the SD card → SSH in → run the install). It takes you from a bare Pi to a
+running arm.
+
+The short version, once you've flashed **Raspberry Pi OS Lite (64-bit, Trixie)**
+and SSH'd in:
 
 ```bash
 git clone https://github.com/Jakecuso/parol6-controller.git
 cd parol6-controller
 bash scripts/setup_pi.sh
+sudo reboot
 ```
 
 That script sets up everything:
 
+- checks your Pi is compatible (64-bit, glibc ≥ 2.39, Python) and stops early if not
+- swap (so a low-RAM Pi doesn't choke on the heavy robotics libs)
 - Python venv + the PAROL6 API + dependencies
 - serial-port access (adds you to the `dialout` group)
 - **mDNS** so the Pi is reachable by name
 - a **systemd service** so the controller **auto-starts on boot and
   auto-restarts if it ever crashes** — no more babysitting a terminal
 
-Reboot once (so the serial-group change takes effect), and you're done.
+That's it — after the reboot you never run a command again.
 
 ## Use it
 
 From **any device on the same network** — phone, laptop, tablet — open:
 
 ```
-http://raspberrypi.local:5050
+http://parol6.local:5050
 ```
 
-(Replace `raspberrypi` with your Pi's hostname if you changed it.)
+(Use your Pi's hostname; `parol6` if you set that when flashing.)
 
 The arm connects automatically when it's plugged in and powered. Open **Manual**
 and start jogging.
+
+Want to edit/debug the Pi from your computer (no monitor needed)? See
+[docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md) — SSH, VS Code Remote, and how to
+reach it securely from outside your home.
 
 ### Plug-and-play behavior
 
