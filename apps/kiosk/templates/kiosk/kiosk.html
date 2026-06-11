@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Touch Panel — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Touch Panel{% endblock %}
+
+{% block content %}
+<style>
+  .kiosk-tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .kiosk-tab {
+    flex:1; padding:14px 4px; border-radius:12px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--text-dim); font-size:13px; font-weight:700;
+    display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;
+    user-select:none; touch-action:manipulation;
+  }
+  .kiosk-tab .ic { font-size:22px; }
+  .kiosk-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .kiosk-panel { display:none; }
+  .kiosk-panel.active { display:block; }
+  .net-row {
+    display:flex; align-items:center; gap:10px; padding:13px 12px; margin-bottom:6px;
+    background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .net-row:active { border-color:var(--accent); }
+  .net-name { flex:1; font-size:14px; font-weight:600; }
+  .net-meta { font-size:11px; color:var(--text-dim); }
+  .pill-ok { color:var(--success); font-size:11px; font-weight:700; }
+  .big-btn {
+    width:100%; padding:14px; border-radius:12px; border:none; cursor:pointer;
+    font-size:15px; font-weight:700; touch-action:manipulation;
+  }
+  .modal-bg {
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+    align-items:center; justify-content:center; z-index:500; padding:16px;
+  }
+  .modal-bg.show { display:flex; }
+  .modal {
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:18px; width:100%; max-width:360px;
+  }
+  .modal input {
+    width:100%; padding:12px; font-size:16px; border-radius:10px;
+    background:var(--surface2); color:var(--text); border:1px solid var(--border);
+    outline:none; margin:10px 0;
+  }
+  .feedback { text-align:center; font-size:12px; min-height:16px; margin-top:8px; color:var(--text-dim); }
+  .robot-status { text-align:center; font-size:13px; font-weight:700; margin:6px 0 10px; color:var(--text-dim); }
+  .jgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+  .jcell { background:var(--surface2); border-radius:8px; padding:7px 4px; text-align:center; }
+  .jcell .l { font-size:9px; font-weight:700; color:var(--accent); }
+  .jcell .v { font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+</style>
+
+<div class="kiosk-tabs">
+  <div class="kiosk-tab active" id="tab-wifi"  onclick="showTab('wifi')"><span class="ic">📶</span>WiFi</div>
+  <div class="kiosk-tab"        id="tab-bt"    onclick="showTab('bt')"><span class="ic">🔵</span>Bluetooth</div>
+  <div class="kiosk-tab"        id="tab-robot" onclick="showTab('robot')"><span class="ic">🦾</span>Robot</div>
+</div>
+
+<!-- WiFi -->
+<div class="kiosk-panel active" id="panel-wifi">
+  <div class="card" style="margin-bottom:10px;">
+    <div class="label-sm" style="margin-bottom:6px;">Connection</div>
+    <div id="wifi-status" style="font-size:13px;">Checking…</div>
+  </div>
+  <button class="big-btn btn-primary" onclick="scanWifi()" id="wifi-scan-btn">↻ Scan for networks</button>
+  <div id="wifi-list" style="margin-top:10px;"></div>
+  <div class="feedback" id="wifi-feedback"></div>
+</div>
+
+<!-- Bluetooth -->
+<div class="kiosk-panel" id="panel-bt">
+  <button class="big-btn btn-primary" onclick="scanBt()" id="bt-scan-btn">↻ Scan for devices</button>
+  <div id="bt-list" style="margin-top:10px;"></div>
+  <div class="feedback" id="bt-feedback"></div>
+</div>
+
+<!-- Robot animation -->
+<div class="kiosk-panel" id="panel-robot">
+  <div class="robot-status" id="robot-status">— waiting for robot —</div>
+  <div class="card" style="padding:6px;">
+    <canvas id="arm-canvas" style="display:block; width:100%; height:240px;"></canvas>
+  </div>
+  <div class="jgrid" id="joint-grid">
+    {% for i in range(1,7) %}
+    <div class="jcell"><div class="l">J{{ i }}</div><div class="v" id="kj{{ i }}">—</div></div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- WiFi password modal -->
+<div class="modal-bg" id="wifi-modal">
+  <div class="modal">
+    <div style="font-size:15px; font-weight:700;" id="wifi-modal-title">Connect</div>
+    <input type="password" id="wifi-pass" placeholder="WiFi password" autocomplete="off">
+    <div style="display:flex; gap:8px;">
+      <button class="big-btn btn-surface" style="flex:1;" onclick="closeWifiModal()">Cancel</button>
+      <button class="big-btn btn-primary" style="flex:1;" onclick="doWifiConnect()">Connect</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── tabs ─────────────────────────────────────────────────────────────────────
+function showTab(t) {
+  ["wifi","bt","robot"].forEach(x => {
+    document.getElementById("tab-"+x).classList.toggle("active", x===t);
+    document.getElementById("panel-"+x).classList.toggle("active", x===t);
+  });
+  if (t==="wifi") loadWifiStatus();
+}
+
+// ── WiFi ─────────────────────────────────────────────────────────────────────
+function loadWifiStatus() {
+  fetch("/apps/kiosk/wifi/status").then(r=>r.json()).then(d=>{
+    const el = document.getElementById("wifi-status");
+    if (!d.available) { el.innerHTML = '<span style="color:var(--warn)">WiFi control only works on the Pi.</span>'; return; }
+    el.innerHTML = d.ssid
+      ? `<span class="pill-ok">●</span> <b>${esc(d.ssid)}</b><div class="net-meta">${esc(d.ip||"")}</div>`
+      : '<span style="color:var(--text-dim)">Not connected</span>';
+  }).catch(()=>{});
+}
+function scanWifi() {
+  const btn = document.getElementById("wifi-scan-btn");
+  btn.disabled = true; btn.textContent = "Scanning…";
+  fetch("/apps/kiosk/wifi/scan").then(r=>r.json()).then(d=>{
+    btn.disabled = false; btn.textContent = "↻ Scan for networks";
+    const list = document.getElementById("wifi-list");
+    if (!d.available) { list.innerHTML = '<div class="net-meta" style="text-align:center;padding:14px;">Only available on the Pi (no nmcli here).</div>'; return; }
+    if (!d.networks.length) { list.innerHTML = '<div class="net-meta" style="text-align:center;padding:14px;">No networks found.</div>'; return; }
+    list.innerHTML = d.networks.map(n => `
+      <div class="net-row" onclick='selectWifi(${JSON.stringify(n.ssid)}, ${n.secure})'>
+        <div class="net-name">${esc(n.ssid)} ${n.active?'<span class="pill-ok">●</span>':''}</div>
+        <div class="net-meta">${n.secure?'🔒':''} ${n.signal}%</div>
+      </div>`).join("");
+  }).catch(()=>{ btn.disabled=false; btn.textContent="↻ Scan for networks"; });
+}
+let _wifiSel = null;
+function selectWifi(ssid, secure) {
+  _wifiSel = ssid;
+  document.getElementById("wifi-modal-title").textContent = "Connect to " + ssid;
+  document.getElementById("wifi-pass").value = "";
+  document.getElementById("wifi-pass").style.display = secure ? "block" : "none";
+  document.getElementById("wifi-modal").classList.add("show");
+}
+function closeWifiModal(){ document.getElementById("wifi-modal").classList.remove("show"); }
+function doWifiConnect() {
+  const pass = document.getElementById("wifi-pass").value;
+  closeWifiModal();
+  setFb("wifi-feedback", "Connecting to "+_wifiSel+"…", "var(--text-dim)");
+  fetch("/apps/kiosk/wifi/connect", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ssid:_wifiSel, password:pass})
+  }).then(r=>r.json()).then(d=>{
+    setFb("wifi-feedback", d.ok ? "✓ Connected" : "✗ "+(d.msg||"failed"),
+          d.ok ? "var(--success)" : "var(--danger)");
+    loadWifiStatus();
+  }).catch(()=> setFb("wifi-feedback","✗ request failed","var(--danger)"));
+}
+
+// ── Bluetooth ────────────────────────────────────────────────────────────────
+function scanBt() {
+  const btn = document.getElementById("bt-scan-btn");
+  btn.disabled = true; btn.textContent = "Scanning (8s)…";
+  fetch("/apps/kiosk/bt/scan").then(r=>r.json()).then(d=>{
+    btn.disabled=false; btn.textContent="↻ Scan for devices";
+    const list = document.getElementById("bt-list");
+    if (!d.available) { list.innerHTML = '<div class="net-meta" style="text-align:center;padding:14px;">Only available on the Pi (no bluetoothctl here).</div>'; return; }
+    if (!d.devices.length) { list.innerHTML = '<div class="net-meta" style="text-align:center;padding:14px;">No devices found. Put your device in pairing mode and rescan.</div>'; return; }
+    list.innerHTML = d.devices.map(dev => `
+      <div class="net-row" onclick='pairBt(${JSON.stringify(dev.mac)}, ${JSON.stringify(dev.name)})'>
+        <div class="net-name">${esc(dev.name)}</div>
+        <div class="net-meta">${dev.paired?'<span class="pill-ok">paired</span>':'tap to pair'}</div>
+      </div>`).join("");
+  }).catch(()=>{ btn.disabled=false; btn.textContent="↻ Scan for devices"; });
+}
+function pairBt(mac, name) {
+  setFb("bt-feedback", "Pairing "+name+"… (this can take ~15s)", "var(--text-dim)");
+  fetch("/apps/kiosk/bt/pair", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({mac})
+  }).then(r=>r.json()).then(d=>{
+    setFb("bt-feedback", d.ok ? "✓ Connected "+name : "✗ "+(d.msg||"failed"),
+          d.ok ? "var(--success)" : "var(--danger)");
+  }).catch(()=> setFb("bt-feedback","✗ request failed","var(--danger)"));
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function setFb(id,msg,color){ const el=document.getElementById(id); el.textContent=msg; el.style.color=color; }
+
+// ── Robot 2D animation ───────────────────────────────────────────────────────
+const HOME = [90,-90,180,0,0,180];
+const canvas = document.getElementById("arm-canvas");
+const ctx = canvas.getContext("2d");
+let lastJoints = null, lastMoveT = 0;
+
+function sizeCanvas() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  canvas.width = r.width*dpr; canvas.height = r.height*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+sizeCanvas();
+window.addEventListener("resize", sizeCanvas);
+
+function drawArm() {
+  const ps = window.poseState || {};
+  const J = (ps.joints && ps.joints.length===6) ? ps.joints : HOME;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+
+  // ground
+  const baseY = h*0.86, cx = w*0.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(w*0.1, baseY); ctx.lineTo(w*0.9, baseY); ctx.stroke();
+
+  // pitch chain (stylized side view): straight up at home, bends with joints
+  const d2r = Math.PI/180;
+  const a1 = (J[1] + 90) * d2r;            // shoulder
+  const a2 = a1 + (J[2] - 180) * d2r;      // elbow
+  const a3 = a2 + J[4] * d2r;              // wrist
+  const L = Math.min(w,h)*0.26;
+  const p0 = {x:cx, y:baseY};
+  const p1 = {x:p0.x + L*Math.sin(a1), y:p0.y - L*Math.cos(a1)};
+  const p2 = {x:p1.x + L*Math.sin(a2), y:p1.y - L*Math.cos(a2)};
+  const p3 = {x:p2.x + L*0.7*Math.sin(a3), y:p2.y - L*0.7*Math.cos(a3)};
+
+  // base
+  ctx.fillStyle = "#e6a800";
+  ctx.beginPath(); ctx.ellipse(p0.x, baseY, 22, 8, 0, 0, 2*Math.PI); ctx.fill();
+
+  // segments
+  const seg = (a,b,wd,col)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); };
+  seg(p0,p1,16,"#ffc800"); seg(p1,p2,13,"#ffc800"); seg(p2,p3,9,"#ffd84d");
+
+  // joints
+  const dot=(p,r,c)=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,2*Math.PI); ctx.fill(); };
+  dot(p1,7,"#ff6b35"); dot(p2,6,"#ff6b35"); dot(p3,7,"#00e5ff");
+
+  // base-rotation compass (J1) top-left
+  const ccx=26, ccy=24, cr=14, j1=J[0]*d2r;
+  ctx.strokeStyle="rgba(255,255,255,0.15)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(ccx,ccy,cr,0,2*Math.PI); ctx.stroke();
+  ctx.strokeStyle="#1e90ff"; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(ccx,ccy); ctx.lineTo(ccx+cr*Math.sin(j1), ccy-cr*Math.cos(j1)); ctx.stroke();
+
+  // status + joint readout
+  let moving = false;
+  if (lastJoints) {
+    for (let i=0;i<6;i++) if (Math.abs(J[i]-lastJoints[i])>0.2) moving=true;
+  }
+  if (moving) lastMoveT = performance.now();
+  lastJoints = J.slice();
+  const st = document.getElementById("robot-status");
+  if (ps.estop) { st.textContent = "⚠ E-STOP PRESSED"; st.style.color="var(--danger)"; }
+  else if (performance.now()-lastMoveT < 400) { st.textContent = "● Moving"; st.style.color="var(--success)"; }
+  else { st.textContent = "○ Idle"; st.style.color="var(--text-dim)"; }
+  for (let i=0;i<6;i++){ const el=document.getElementById("kj"+(i+1)); if(el) el.textContent = J[i].toFixed(0)+"°"; }
+}
+function loop(){ drawArm(); requestAnimationFrame(loop); }
+loop();
+
+// initial loads
+loadWifiStatus();
+</script>
+{% endblock %}

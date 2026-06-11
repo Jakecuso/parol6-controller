@@ -12,6 +12,7 @@ APP_DIRS = [
     "sequences",
     "poses",
     "visualizer",
+    "kiosk",
     "settings",
 ]
 
