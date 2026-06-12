@@ -16,6 +16,7 @@ self-contained:
 | 📊 **Telemetry** | Live joint angles, TCP pose, and status |
 | 💾 **Poses** | Save and recall named joint positions |
 | 🎬 **Sequences** | Record and replay multi-waypoint motions |
+| 📟 **Touch Panel** | On-Pi touchscreen: join WiFi, pair Bluetooth, watch a live arm animation — no SSH or keyboard |
 | ⚙️ **Settings** | Pick simulator/real hardware, COM port, and one-tap software update |
 
 All robot communication goes through one layer (`core/robot.py`) — apps never
@@ -91,6 +92,33 @@ Cut power to the Pi, the arm, or both. Plug it all back in. ~20 seconds later th
 service is up and the arm is connected and live again — nothing to launch. If the
 arm's USB takes a few seconds to appear after power-on, the controller just keeps
 retrying until it connects.
+
+### Optional: a touchscreen for portable, no-laptop setup
+
+The catch with a headless Pi is the chicken-and-egg of the first connection: to
+reach `parol6.local:5050` you need the Pi on your network, but joining a *new*
+network normally means SSH or a keyboard — which you don't have if you've just
+carried the arm to a demo, a classroom, or a friend's place.
+
+Wire a small **touchscreen** to the Pi and the **📟 Touch Panel** app solves
+that. It comes up on the local display and lets you, by finger, with nothing else
+plugged in:
+
+- **Join WiFi** — scan nearby networks, tap one, type the password (uses
+  NetworkManager / `nmcli`).
+- **Pair Bluetooth** — scan and pair a gamepad or other device for the **Remote**
+  app (uses `bluetoothctl`).
+- **Watch the arm** — a live 2D animation of the joints with a moving/idle/E-stop
+  readout, so you can confirm the arm is alive at a glance.
+
+Once it's on WiFi, the Touch Panel shows the Pi's address so you can switch to
+your phone or laptop for full control. To launch it fullscreen on boot, point a
+kiosk browser (e.g. Chromium in `--kiosk` mode) at
+`http://localhost:5050/apps/kiosk`.
+
+> The same app is reachable from any browser, but WiFi/Bluetooth control only
+> works **on the Pi itself** (where `nmcli`/`bluetoothctl` live). On other devices
+> those tabs explain that and stay read-only — the arm animation still works.
 
 ---
 
