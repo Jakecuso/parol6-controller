@@ -22,6 +22,8 @@ def register(app, robot, socketio):
 
     def _run(fn, label):
         """Run a gripper command off the SocketIO thread; surface errors."""
+        print(f"[gripper] command received: {label} (connected={robot.connected})")
+
         def _task():
             try:
                 rc = fn()

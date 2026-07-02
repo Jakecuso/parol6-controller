@@ -239,6 +239,27 @@ class Robot:
     # in mA (the firmware's object-detection stops the move on contact).
 
     GRIPPER_TOOL = "MSG"
+    _gripper_selected = False
+
+    def _ensure_gripper_tool(self) -> bool:
+        """Make the MSG gripper the active tool so the controller drives it.
+
+        tool_action() only takes effect for the currently-selected tool, so we
+        must select "MSG" once before sending gripper moves. Cached after the
+        first success.
+        """
+        if not self.connected:
+            return False
+        if self._gripper_selected:
+            return True
+        try:
+            self.client.select_tool(self.GRIPPER_TOOL)
+            self._gripper_selected = True
+            print(f"[robot] selected gripper tool: {self.GRIPPER_TOOL}")
+            return True
+        except Exception as e:
+            print(f"[robot] select_tool({self.GRIPPER_TOOL}) failed: {e}")
+            return False
 
     def gripper_move(self, position: float, speed: float = 0.5,
                      current: int = 500, wait: bool = True):
@@ -252,9 +273,14 @@ class Robot:
         if not self.connected:
             print("[robot] gripper_move ignored (not connected)")
             return -1
-        return self.client.tool_action(
+        self._ensure_gripper_tool()
+        print(f"[robot] gripper_move -> pos={position:.2f} speed={speed:.2f} "
+              f"current={current}")
+        rc = self.client.tool_action(
             self.GRIPPER_TOOL, "move", [position, speed, int(current)], wait=wait
         )
+        print(f"[robot] gripper_move tool_action returned {rc}")
+        return rc
 
     def gripper_open(self, **kw):
         """Open the jaws fully."""
@@ -270,7 +296,11 @@ class Robot:
         if not self.connected:
             print("[robot] gripper_calibrate ignored (not connected)")
             return -1
-        return self.client.tool_action(self.GRIPPER_TOOL, "calibrate")
+        self._ensure_gripper_tool()
+        print("[robot] gripper_calibrate ->")
+        rc = self.client.tool_action(self.GRIPPER_TOOL, "calibrate")
+        print(f"[robot] gripper_calibrate tool_action returned {rc}")
+        return rc
 
     # ---- motion ----------------------------------------------------------
 
