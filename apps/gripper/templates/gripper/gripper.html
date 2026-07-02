@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Gripper — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Gripper{% endblock %}
+
+{% block content %}
+<!-- Open / Close -->
+<div style="display:flex; gap:12px; margin-bottom:16px;">
+  <button class="btn" id="btn-open"
+          style="flex:1; padding:22px 0; font-size:18px; font-weight:700;
+                 background:linear-gradient(145deg,#26a69a,#00695c);"
+          onclick="gripOpen()">⟵ Open ⟶</button>
+  <button class="btn" id="btn-close"
+          style="flex:1; padding:22px 0; font-size:18px; font-weight:700;
+                 background:linear-gradient(145deg,#ef5350,#b71c1c);"
+          onclick="gripClose()">⟶ Close ⟵</button>
+</div>
+
+<!-- Position slider -->
+<div class="card" style="margin-bottom:16px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <div class="label-sm" style="margin-bottom:0;">Jaw position</div>
+    <div style="text-align:right;">
+      <span id="pos-display" style="font-size:22px; font-weight:700;">0</span>
+      <span style="font-size:12px; color:var(--text-dim);">%</span>
+    </div>
+  </div>
+  <input type="range" class="speed-dial" id="pos-slider"
+         min="0" max="100" value="0" step="1"
+         oninput="onSlide(this.value)" onchange="sendPos(this.value)">
+  <div style="display:flex; justify-content:space-between; font-size:10px;
+              color:var(--text-dim); margin-top:4px;">
+    <span>open</span><span>closed</span>
+  </div>
+</div>
+
+<!-- Calibrate -->
+<div class="card">
+  <div class="label-sm">Setup</div>
+  <button class="btn btn-surface" style="width:100%; padding:12px 0;"
+          onclick="gripCalibrate()">🔧 Calibrate gripper (homes the jaws)</button>
+  <div style="font-size:10px; color:var(--text-dim); margin-top:6px;">
+    Runs once to learn the jaw range. Keep the jaws clear — they move full travel.
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function onSlide(v) {
+    document.getElementById("pos-display").textContent = v;
+  }
+  function sendPos(v) {
+    socket.emit("gripper:set", { position: Number(v) });
+  }
+  function setSlider(v) {
+    document.getElementById("pos-slider").value = v;
+    onSlide(v);
+  }
+  function gripOpen()  { setSlider(0);   socket.emit("gripper:open"); }
+  function gripClose() { setSlider(100); socket.emit("gripper:close"); }
+  function gripCalibrate() {
+    if (confirm("Calibrate the gripper? The jaws will move through their full range. Keep them clear.")) {
+      socket.emit("gripper:calibrate");
+    }
+  }
+</script>
+{% endblock %}

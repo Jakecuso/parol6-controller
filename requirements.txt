@@ -19,3 +19,6 @@ pyserial>=3.5
 
 # Bluetooth / USB gamepad teleop (Remote app)
 pygame>=2.5
+
+# Live USB-webcam feed (Camera app). headless = no GUI libs, right for a Pi.
+opencv-python-headless>=4.9

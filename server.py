@@ -8,6 +8,8 @@ socketio = SocketIO()
 APP_DIRS = [
     "manual_control",
     "xbox_control",
+    "gripper",
+    "camera",
     "telemetry",
     "sequences",
     "poses",

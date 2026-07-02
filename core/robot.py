@@ -229,6 +229,49 @@ class Robot:
         """e.g. 'NONE' or 'PNEUMATIC'. See parol6 tool registry."""
         return self.client.select_tool(name)
 
+    # ---- gripper (MSG electric gripper, on CAN as a tool) ----------------
+    #
+    # The MSG force-feedback gripper is exposed by the parol6 API as the tool
+    # keyed "MSG". We drive it with client.tool_action("MSG", action, params):
+    #   action "move"      params [position, speed, current]
+    #   action "calibrate" (one-shot #Gripcal — homes the jaws)
+    # position/speed are fractions 0.0–1.0; current is the grip current limit
+    # in mA (the firmware's object-detection stops the move on contact).
+
+    GRIPPER_TOOL = "MSG"
+
+    def gripper_move(self, position: float, speed: float = 0.5,
+                     current: int = 500, wait: bool = True):
+        """Move the gripper jaws to `position` (0.0 = open, 1.0 = closed).
+
+        If your gripper travels the opposite way, swap gripper_open/close below.
+        Returns the tool_action result, or -1 if not connected.
+        """
+        position = max(0.0, min(1.0, float(position)))
+        speed = max(0.0, min(1.0, float(speed)))
+        if not self.connected:
+            print("[robot] gripper_move ignored (not connected)")
+            return -1
+        return self.client.tool_action(
+            self.GRIPPER_TOOL, "move", [position, speed, int(current)], wait=wait
+        )
+
+    def gripper_open(self, **kw):
+        """Open the jaws fully."""
+        return self.gripper_move(0.0, **kw)
+
+    def gripper_close(self, **kw):
+        """Close the jaws fully (stops early on object contact)."""
+        return self.gripper_move(1.0, **kw)
+
+    def gripper_calibrate(self):
+        """Run the one-shot gripper homing (#Gripcal). Moves the jaws through
+        full travel to learn the range. Returns -1 if not connected."""
+        if not self.connected:
+            print("[robot] gripper_calibrate ignored (not connected)")
+            return -1
+        return self.client.tool_action(self.GRIPPER_TOOL, "calibrate")
+
     # ---- motion ----------------------------------------------------------
 
     def home(self, wait: bool = True, timeout: float = 60.0):
