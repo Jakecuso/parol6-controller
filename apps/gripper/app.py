@@ -26,8 +26,12 @@ def register(app, robot, socketio):
 
     app.register_blueprint(bp)
 
+    def _emit_status():
+        socketio.emit("gripper:status", _grip.status())
+
     def _run(fn, label):
-        """Run a gripper serial command off the SocketIO thread; surface errors."""
+        """Run a gripper serial command off the SocketIO thread; surface errors +
+        broadcast the resulting connection/command status to the page."""
         print(f"[gripper] command: {label}")
 
         def _task():
@@ -36,6 +40,7 @@ def register(app, robot, socketio):
             except Exception as e:
                 print(f"[gripper] {label} error: {e}")
                 socketio.emit("robot:error", {"msg": f"Gripper {label}: {e}"})
+            _emit_status()
         socketio.start_background_task(_task)
 
     @socketio.on("gripper:open")
@@ -55,3 +60,14 @@ def register(app, robot, socketio):
     @socketio.on("gripper:calibrate")
     def _cal():
         _run(_grip.calibrate, "calibrate")
+
+    @socketio.on("gripper:status")
+    def _status():
+        """Page asks for current state; probe with #Info so we know it's alive."""
+        def _task():
+            try:
+                _grip.info()          # round-trips a command to test the link
+            except Exception as e:
+                print(f"[gripper] status probe error: {e}")
+            _emit_status()
+        socketio.start_background_task(_task)

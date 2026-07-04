@@ -39,6 +39,32 @@ class GripperSerial:
         self._ser = None
         self._inited = False
         self._lock = threading.Lock()
+        self._status = {
+            "connected": False, "port": None, "configured_port": self._port,
+            "last_cmd": None, "last_resp": None, "error": None,
+        }
+
+    def status(self) -> dict:
+        """Snapshot for the UI: connection state, port, last command/response."""
+        s = dict(self._status)
+        try:
+            s["available_ports"] = self._list_ports()
+        except Exception:
+            s["available_ports"] = []
+        return s
+
+    def _list_ports(self):
+        try:
+            from serial.tools import list_ports
+        except Exception:
+            return []
+        out = []
+        for p in list_ports.comports():
+            out.append({"device": p.device,
+                        "desc": (p.description or "").strip(),
+                        "id": (getattr(p, "product", None) or
+                               getattr(p, "manufacturer", None) or "")})
+        return out
 
     # ---- port / connection ----------------------------------------------
 
@@ -71,6 +97,7 @@ class GripperSerial:
         self._ser = serial.Serial(port, self._baud, timeout=0.3)
         print(f"[gripper-uart] connected {port} @ {self._baud}")
         self._inited = False
+        self._status.update(connected=True, port=port, error=None)
         return self._ser
 
     def _send_raw(self, ser, cmd: str) -> str:
@@ -80,6 +107,7 @@ class GripperSerial:
         time.sleep(0.05)
         resp = ser.read(ser.in_waiting or 0).decode(errors="replace").strip()
         print(f"[gripper-uart] {cmd} -> {resp!r}")
+        self._status.update(last_cmd=cmd, last_resp=resp, error=None)
         return resp
 
     def _send(self, cmd: str) -> str:
@@ -92,7 +120,7 @@ class GripperSerial:
                     self._send_raw(ser, f"#Gripcur {DEFAULT_CURRENT}")
                     self._inited = True
                 return self._send_raw(ser, cmd)
-            except Exception:
+            except Exception as e:
                 # drop the connection so the next call reconnects cleanly
                 if self._ser is not None:
                     try:
@@ -101,6 +129,7 @@ class GripperSerial:
                         pass
                 self._ser = None
                 self._inited = False
+                self._status.update(connected=False, error=str(e))
                 raise
 
     # ---- public API ------------------------------------------------------

@@ -35,13 +35,27 @@
 </div>
 
 <!-- Calibrate -->
-<div class="card">
+<div class="card" style="margin-bottom:14px;">
   <div class="label-sm">Setup</div>
   <button class="btn btn-surface" style="width:100%; padding:12px 0;"
           onclick="gripCalibrate()">🔧 Calibrate gripper (homes the jaws)</button>
   <div style="font-size:10px; color:var(--text-dim); margin-top:6px;">
     Runs once to learn the jaw range. Keep the jaws clear — they move full travel.
   </div>
+</div>
+
+<!-- Connection / diagnostics -->
+<div class="card">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div class="label-sm" style="margin-bottom:0;">UART connection</div>
+    <button class="btn btn-surface" style="padding:3px 10px;font-size:11px;border-radius:6px;"
+            onclick="socket.emit('gripper:status')">↻ Refresh</button>
+  </div>
+  <div id="grip-conn" style="font-size:13px; font-weight:700;">checking…</div>
+  <div id="grip-port" style="font-size:11px; color:var(--text-dim); margin-top:2px;"></div>
+  <div id="grip-last" style="font-size:11px; color:var(--text-dim); margin-top:6px;
+       font-family:monospace; white-space:pre-wrap;"></div>
+  <div id="grip-ports" style="font-size:10px; color:var(--text-dim); margin-top:8px;"></div>
 </div>
 {% endblock %}
 
@@ -64,5 +78,32 @@
       socket.emit("gripper:calibrate");
     }
   }
+
+  // ---- connection status panel ----
+  socket.on("gripper:status", (s) => {
+    const conn = document.getElementById("grip-conn");
+    const port = document.getElementById("grip-port");
+    const last = document.getElementById("grip-last");
+    const ports = document.getElementById("grip-ports");
+    if (s.connected) {
+      conn.textContent = "✓ connected";
+      conn.style.color = "#26a69a";
+    } else {
+      conn.textContent = "✗ not connected";
+      conn.style.color = "#ef5350";
+    }
+    port.textContent = "port: " + (s.port || s.configured_port || "auto — none found");
+    if (s.error) {
+      last.textContent = "error: " + s.error;
+    } else if (s.last_cmd) {
+      last.textContent = "last: " + s.last_cmd + "  →  " + (s.last_resp || "(no reply)");
+    } else {
+      last.textContent = "";
+    }
+    const list = (s.available_ports || []).map(p => p.device + (p.desc ? " (" + p.desc + ")" : ""));
+    ports.textContent = list.length ? "ports seen: " + list.join(", ") : "";
+  });
+
+  socket.emit("gripper:status");   // ask on load
 </script>
 {% endblock %}
