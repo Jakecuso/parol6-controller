@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Camera — PAROL6{% endblock %}
+{% block nav_left %}<a class="nav-back" href="/">‹ Home</a>{% endblock %}
+{% block nav_title %}Camera{% endblock %}
+
+{% block content %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <div id="feed-wrap" style="position:relative; width:100%; background:#000;
+       aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;">
+    <img id="feed" alt="camera feed"
+         style="width:100%; height:100%; object-fit:contain; display:block;"
+         onerror="onFeedError()">
+    <div id="no-cam" style="display:none; position:absolute; inset:0;
+         flex-direction:column; align-items:center; justify-content:center;
+         color:var(--text-dim); text-align:center; gap:8px;">
+      <div style="font-size:40px;">📷</div>
+      <div style="font-size:14px;">No camera connected</div>
+      <div style="font-size:11px;">Plug a USB webcam into the Pi — retrying…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const feed  = document.getElementById("feed");
+  const noCam = document.getElementById("no-cam");
+
+  function startFeed() {
+    noCam.style.display = "none";
+    feed.style.display = "block";
+    // cache-buster so a retry re-requests the stream
+    feed.src = "/apps/camera/stream?t=" + Date.now();
+  }
+  function onFeedError() {
+    feed.style.display = "none";
+    noCam.style.display = "flex";
+    setTimeout(startFeed, 3000);  // keep retrying while the page is open
+  }
+  startFeed();
+</script>
+{% endblock %}

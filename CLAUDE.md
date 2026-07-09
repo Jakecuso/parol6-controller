@@ -78,6 +78,12 @@ The switch is the `simulate` flag passed into `Robot(...)`. Default it to
 - `telemetry` — live readout of joints, TCP pose, status. STATUS: working.
 - `xbox_control` — Bluetooth Xbox gamepad teleop. STATUS: logic correct; needs
   a paired Xbox controller (Bluetooth system setting). pygame already installed.
+- `gripper` — open/close + position slider for the MSG gripper. Drives
+  `robot.gripper_*` in core/robot.py (parol6 `tool_action("MSG", ...)`).
+  STATUS: builds/renders in sim; needs the real arm+gripper on the Pi to verify motion.
+- `camera` — live USB-webcam MJPEG feed. Needs `opencv-python-headless` + a
+  webcam on `/dev/video0`. Shows a "No camera" placeholder otherwise.
+  STATUS: builds/renders; needs a webcam on the Pi to verify the feed.
 
 ## Planned / ideas
 
